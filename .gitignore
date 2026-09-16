@@ -1,0 +1,22 @@
+# Werkmateriaal en aantekeningen die niet in de repository horen.
+decompiled/
+NOTES-herkomst.md
+
+# Hulpscripts die alleen op lokaal werkmateriaal draaien.
+tools/nrbf.py
+tools/extract.py
+tools/genfixtures.py
+tools/genparammeta.py
+tools/genparalists.py
+tools/gennames.py
+
+# Logboeken en captures van echte installaties — bevatten serienummers.
+logs/
+*.dnt
+*log VWT.txt
+duco-log-*.txt
+duco-sniff-*.txt
+
+# Python bytecode
+__pycache__/
+*.pyc

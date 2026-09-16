@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ventilation Web Tool</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot" id="statusDot" data-state="off"></span>
+    <div>
+      <h1>Ventilation Web Tool <span class="badge" id="emuBadge" hidden>emulatie</span></h1>
+      <p class="sub" id="statusText">Niet verbonden</p>
+    </div>
+  </div>
+
+  <div class="topbar-actions">
+    <label class="check" title="Toon alle seriële poorten in plaats van alleen de CP210x-kabel">
+      <input type="checkbox" id="anyDevice"> alle poorten
+    </label>
+    <label class="check" title="Verbind met een nagebootste DucoBox in plaats van echte hardware">
+      <input type="checkbox" id="emulate"> emulatie
+    </label>
+    <select id="emuProfile" class="select" hidden
+            title="Welke installatie de emulator naspeelt"></select>
+    <button id="btnSaveLogTop" class="btn small"
+            title="Bewaar het volledige logboek — seriële communicatie én bediening — als tekstbestand">Logboek opslaan</button>
+    <button id="btnConnect" class="btn primary">Verbinden</button>
+    <button id="btnDisconnect" class="btn" hidden>Verbreken</button>
+  </div>
+</header>
+
+<div id="unsupported" class="banner error" hidden>
+  <strong>Web Serial niet beschikbaar.</strong>
+  Deze pagina heeft Chrome of Edge op desktop nodig, geopend via <code>http://localhost</code>
+  of <code>https://</code>. Vanaf <code>file://</code> werkt de seriële toegang niet.
+  Zet <em>emulatie</em> aan om de applicatie zonder hardware te bekijken.
+</div>
+
+<div id="emuBanner" class="banner warn" hidden>
+  <strong>Emulatie actief.</strong>
+  Je praat met een nagebootste DucoBox in de browser, niet met hardware.
+  Wijzigingen komen nergens terecht en verdwijnen bij het verbreken.
+</div>
+
+<main class="layout">
+
+  <nav class="sidenav" id="sidenav">
+    <div class="nav-section">
+      <h2>Overzicht</h2>
+      <button class="nav-item active" data-view="dashboard">Dashboard</button>
+    </div>
+
+    <div class="nav-section">
+      <h2>Componenten <button class="nav-mini" id="btnReloadNodes" title="Componentenlijst opnieuw ophalen">↻</button></h2>
+      <div id="navNodes">
+        <p class="nav-empty">Nog niet verbonden.</p>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <h2>Diagnose</h2>
+      <button class="nav-item" data-view="network">Netwerk (ruw)</button>
+      <button class="nav-item" data-view="info">Informatie</button>
+      <button class="nav-item" data-view="console">Console</button>
+      <button class="nav-item" data-view="actions">Onderhoud</button>
+    </div>
+  </nav>
+
+  <section class="content" id="content">
+
+    <!-- Dashboard -->
+    <div class="view active" data-view="dashboard">
+      <div class="view-head">
+        <h2>Dashboard</h2>
+        <button class="btn small" data-refresh="dashboard">Vernieuwen</button>
+      </div>
+      <div id="dashboardBody" class="cards">
+        <p class="empty">Verbind met de DucoBox om te beginnen.</p>
+      </div>
+    </div>
+
+    <!-- Eén component: gegevens, instellingen en acties -->
+    <div class="view" data-view="node">
+      <div class="view-head">
+        <div>
+          <h2 id="nodeTitle">Component</h2>
+          <p class="sub" id="nodeSubtitle"></p>
+        </div>
+        <button class="btn small" data-refresh="node">Vernieuwen</button>
+      </div>
+
+      <div id="nodeInfo" class="detail-section"></div>
+
+      <div class="detail-section" id="nodeGroupsSection" hidden>
+        <h4>Instellingen</h4>
+        <div class="group-tabs" id="groupTabs"></div>
+        <div id="groupBody"></div>
+      </div>
+
+      <div class="detail-section" id="installerSection" hidden>
+        <h4>Installateursmodus</h4>
+        <div id="installerBody"></div>
+      </div>
+
+      <div class="detail-section" id="topologySection" hidden>
+        <h4>Plaats in het netwerk</h4>
+        <div id="topologyBody"></div>
+      </div>
+
+      <div class="detail-section" id="nodeActionsSection" hidden>
+        <h4>Acties op deze component</h4>
+        <div class="cards" id="nodeActions"></div>
+      </div>
+    </div>
+
+    <!-- Netwerk -->
+    <div class="view" data-view="network">
+      <div class="view-head">
+        <h2>Netwerk (ruw)</h2>
+        <button class="btn small" data-refresh="network">Vernieuwen</button>
+      </div>
+      <p class="hint">De onbewerkte tabellen zoals de box ze teruggeeft.</p>
+      <div id="networkBody">
+        <p class="empty">Nog niet geladen.</p>
+      </div>
+    </div>
+
+    <!-- Informatie -->
+    <div class="view" data-view="info">
+      <div class="view-head">
+        <h2>Informatie</h2>
+        <button class="btn small" data-refresh="info">Alles ophalen</button>
+      </div>
+      <div id="infoBody" class="cards"></div>
+    </div>
+
+    <!-- Console -->
+    <div class="view" data-view="console">
+      <div class="view-head">
+        <h2>Console</h2>
+        <div class="head-actions">
+          <label class="check"><input type="checkbox" id="showHex"> hex</label>
+          <button class="btn small" id="btnClearLog">Wissen</button>
+          <button class="btn small" id="btnSaveLog">Opslaan</button>
+        </div>
+      </div>
+      <p class="hint">
+        Rechtstreekse toegang tot de commandoregel van de box.
+        <code>help /all</code> toont wat dit toestel kent.
+      </p>
+      <form id="consoleForm" class="console-input">
+        <input type="text" id="consoleCmd" placeholder="commando, bv. swversion" autocomplete="off" spellcheck="false">
+        <button class="btn primary" type="submit">Verstuur</button>
+      </form>
+      <div id="cmdSuggest" class="suggest" hidden></div>
+      <pre id="log" class="log"></pre>
+    </div>
+
+    <!-- Onderhoud -->
+    <div class="view" data-view="actions">
+      <div class="view-head"><h2>Onderhoud</h2></div>
+      <p class="hint">
+        Handelingen die de hele installatie raken. Elke actie vraagt eerst om bevestiging.
+      </p>
+      <div id="actionsBody" class="cards"></div>
+    </div>
+
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<dialog id="confirmDialog" class="dialog">
+  <form method="dialog">
+    <h3 id="confirmTitle">Bevestigen</h3>
+    <p id="confirmBody"></p>
+    <div class="dialog-actions">
+      <button value="cancel" class="btn">Annuleren</button>
+      <button value="ok" class="btn danger">Uitvoeren</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
