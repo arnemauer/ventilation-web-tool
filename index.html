@@ -40,6 +40,22 @@
   Zet <em>emulatie</em> aan om de applicatie zonder hardware te bekijken.
 </div>
 
+<div id="noReplyBanner" class="banner error" hidden>
+  <strong>De poort is open, maar er komt niets terug.</strong>
+  Er is geen enkele byte van het toestel ontvangen, dus dit is geen DucoBox aan
+  de andere kant — of de verbinding loopt niet door.
+  <br>
+  Meestal is het de verkeerde poort. Verbreek, klik opnieuw op <em>Verbinden</em>
+  en kies er een andere. Staat <em>alle poorten</em> aan, dan zitten er ook
+  poorten in de lijst die niets met de kabel te maken hebben: op een Mac
+  bijvoorbeeld Bluetooth- en debugpoorten. De juiste heet meestal iets met
+  <code>usbserial</code>, <code>SLAB_USBtoUART</code> of <code>CP210x</code>.
+  <br>
+  Blijft het leeg met de goede poort, controleer dan de kabel en of hij in de
+  servicepoort van de box zit. Via <em>Console</em> kun je zelf een commando
+  proberen, bijvoorbeeld <code>swversion</code>.
+</div>
+
 <div id="emuBanner" class="banner warn" hidden>
   <strong>Emulatie actief.</strong>
   Je praat met een nagebootste DucoBox in de browser, niet met hardware.

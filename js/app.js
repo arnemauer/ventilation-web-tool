@@ -213,6 +213,7 @@ async function connect() {
     document.body.toggleAttribute('data-emulating', emulate);
     $('#emuBadge').hidden = !emulate;
     $('#emuBanner').hidden = !emulate;
+    $('#noReplyBanner').hidden = true;
     if (emulate) appendLog({ dir: 'sys', text: 'Emulatie gestart — geen echte hardware' });
 
     setBusy(true, 'Verbinden…');
@@ -222,6 +223,23 @@ async function connect() {
     setBusy(true, "Commando's ophalen…");
     await duco.discoverCommands({ force: true });
     appendLog({ dir: 'sys', text: `${duco.possibleCommands.length} commando's beschikbaar` });
+
+    // Is er geen enkele byte binnengekomen, dan zit er niets te luisteren aan de
+    // andere kant. Doorgaan heeft dan geen zin: elk volgend commando loopt zijn
+    // volledige timeout uit en de gebruiker ziet een lege, ogenschijnlijk
+    // werkende applicatie. Liever meteen zeggen wat er mis is.
+    if (duco.rxBytes === 0) {
+      $('#btnConnect').hidden = true;
+      $('#btnDisconnect').hidden = false;
+      $('#noReplyBanner').hidden = false;
+      state.deviceLabel = 'Verbonden, maar geen antwoord';
+      setBusy(false);
+      setStatus('Geen antwoord van het toestel', 'err');
+      appendLog({ dir: 'err', text: 'Geen enkele byte ontvangen — verkeerde poort of geen verbinding' });
+      toast('Geen antwoord van het toestel', 'err');
+      buildActions();
+      return;
+    }
 
     await identify();
     buildActions();
@@ -262,6 +280,7 @@ async function disconnect() {
     document.body.removeAttribute('data-emulating');
     $('#emuBadge').hidden = true;
     $('#emuBanner').hidden = true;
+    $('#noReplyBanner').hidden = true;
     $('#btnConnect').hidden = false;
     $('#btnDisconnect').hidden = true;
     $('#networkBody').dataset.loaded = '';
@@ -2004,10 +2023,13 @@ function init() {
   // Een losgetrokken kabel moet de UI niet in een verbonden staat achterlaten.
   if (DucoSerial.isSupported) {
     navigator.serial.addEventListener('disconnect', () => {
-      if (state.connected && !state.emulating) {
+      // Het event kan meer dan eens vuren voor dezelfde kabel; één melding is
+      // genoeg en twee keer verbreken levert dubbele regels in het logboek.
+      if (state.connected && !state.emulating && !state.disconnecting) {
+        state.disconnecting = true;
         appendLog({ dir: 'err', text: 'Kabel losgekoppeld' });
         toast('Verbinding verbroken', 'err');
-        disconnect();
+        disconnect().finally(() => { state.disconnecting = false; });
       }
     });
   }

@@ -38,6 +38,7 @@ export class DucoSerial {
     this._writer = null;
     this._buf = [];          // binnengekomen bytes, nog niet opgehaald
     this._lastRxAt = 0;      // tijdstip laatste ontvangen chunk
+    this.rxBytes = 0;        // totaal ontvangen sinds openen — 0 = doodse lijn
     this._readLoop = null;
     this._stopping = false;
     this._queue = Promise.resolve();
@@ -92,6 +93,7 @@ export class DucoSerial {
     this._writer = this.port.writable.getWriter();
     this._startReadLoop();
     this.possibleCommands = [];
+    this.rxBytes = 0;
     this.onLog({ dir: 'sys', text: 'Poort geopend op 115200 8N1' });
   }
 
@@ -127,6 +129,7 @@ export class DucoSerial {
             if (done) break;
             if (value && value.length) {
               for (const b of value) this._buf.push(b);
+              this.rxBytes += value.length;
               this._wakeReaders();
               this._lastRxAt = Date.now();
             }
@@ -379,6 +382,13 @@ export class DucoSerial {
         );
       if (cmds.length >= 5) {
         this.possibleCommands = cmds;
+        break;
+      }
+      // Kwam er helemaal niets binnen, dan luistert er niets mee en heeft nog
+      // een poging geen zin. Een onvolledig antwoord is wél het proberen waard:
+      // dat kan aan timing of een verstoorde eerste regel liggen.
+      if (this.rxBytes === 0) {
+        this.onLog({ dir: 'sys', text: 'Geen enkele byte ontvangen — niet opnieuw geprobeerd' });
         break;
       }
     }
