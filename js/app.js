@@ -47,6 +47,8 @@ const state = {
   deviceLabel: '',
   nodes: [],
   selectedNode: null,
+  nodeToken: 0,             // verhoogd bij elke gekozen component
+  groupToken: 0,            // verhoogd bij elk gekozen tabblad
   currentGroup: null,
   groupIndex: 1,             // voor groepen met een eigen index, zoals Motor
   dirty: new Map(),          // sleutel -> { group, node, sec, row, value, meta }
@@ -510,6 +512,13 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
   const node = state.nodes.find((n) => n.node === Number(nodeNumber));
   if (!node) return;
 
+  // Klikt de gebruiker door naar een andere component terwijl deze nog laadt,
+  // dan mag het antwoord van deze niet meer op het scherm belanden.
+  const token = ++state.nodeToken;
+  // Ook een tabblad dat nog bezig is hoort bij de vorige component; die moet
+  // nu al stoppen en niet pas als de nieuwe component zijn eerste tabblad opent.
+  ++state.groupToken;
+
   state.selectedNode = node.node;
   state.dirty.clear();
   switchView('node');
@@ -525,14 +534,20 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
 
   setBusy(true, `Node ${node.node} uitlezen…`);
   try {
+    // De box beschrijft zichzelf niet via `nodeinfo 1` — op zowel een Energy
+    // als een Focus kwam daar op elk veld 'Failed' terug, terwijl de box verder
+    // prima antwoordde. `boardinfo` geeft voor de box wél serienummer, printtype
+    // en tellers.
+    const infoCmd = isBox(node) && duco.supports('boardinfo') ? 'boardinfo' : `nodeinfo ${node.node}`;
     let infoLines = [];
-    if (duco.supports('nodeinfo')) {
+    if (duco.supports(infoCmd)) {
       try {
-        infoLines = await duco.sendCommandWithResponse(`nodeinfo ${node.node}`, { timeoutSec: 5 });
+        infoLines = await duco.sendCommandWithResponse(infoCmd, { timeoutSec: 5 });
       } catch (err) {
-        appendLog({ dir: 'err', text: `nodeinfo ${node.node}: ${err.message}` });
+        appendLog({ dir: 'err', text: `${infoCmd}: ${err.message}` });
       }
     }
+    if (token !== state.nodeToken) return;   // intussen een andere component gekozen
     info.innerHTML = '';
     info.appendChild(buildInfoHeading('Gegevens'));
     info.appendChild(buildNodeInfoCard(node, infoLines));
@@ -543,6 +558,7 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
   buildNodeActions(node);
   buildTopologySection(node);
   await buildInstallerSection(node);
+  if (token !== state.nodeToken) return;
 
   const groups = groupsForNode(node);
   renderGroupTabs(node, groups);
@@ -560,7 +576,9 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
  * een vertaling van de printnamen naar wat je op de bus tegenkomt.
  */
 const BOARD_FOR_TYPE = {
-  box: 'ccb', uc: 'ucb', ucco2: 'ucb', ucrh: 'ucb', ucbat: 'ucb', ucp: 'ucb',
+  // De box zelf staat hier bewust niet in: op een Focus gaf elk nummer uit de
+  // printlijst 'Failed'. De box is een ander printtype dan waar die lijst voor is.
+  uc: 'ucb', ucco2: 'ucb', ucrh: 'ucb', ucbat: 'ucb', ucp: 'ucb',
   vlv: 'vcb', vlvsl: 'vcb', vlvco2: 'vcb', vlvrh: 'vcb', vlvco2rh: 'vcb',
   vlvsup: 'vcb', vlvoda: 'vcb', vlveta: 'vcb',
   iav: 'vcb', iavco2: 'vcb', iavrh: 'vcb',
@@ -597,7 +615,7 @@ function groupsForNode(node) {
  * geen commando dat ze in één keer geeft, dus dit kost een round-trip per
  * parameter — vandaar dat het achter een eigen tabblad zit.
  */
-async function loadRawParams(node) {
+async function loadRawParams(node, token) {
   const body = $('#groupBody');
   const board = boardForNode(node);
   body.innerHTML = '';
@@ -615,6 +633,11 @@ async function loadRawParams(node) {
   const sec = { title: null, module: null, readonly: false, writeOnly: false };
 
   for (const p of board.params) {
+    // Elke parameter is een eigen round-trip. Is de gebruiker intussen naar een
+    // andere component of een ander tabblad gegaan, dan stoppen we: anders
+    // blijft de lijn nog tientallen seconden bezet met antwoorden die niemand
+    // meer ziet, en schuiven alle nieuwe klikken achter in de rij.
+    if (token !== state.groupToken) return;
     let value = null;
     try {
       const lines = await duco.sendCommandWithResponse(`NodeParaGet ${node.node} ${p.id}`, {
@@ -834,6 +857,10 @@ function renderGroupTabs(node, groups) {
 }
 
 async function selectGroup(group, node) {
+  // Zelfde reden als bij showNode: commando's gaan één voor één over de lijn,
+  // dus een snelle klik op een ander tabblad komt pas aan de beurt als dit
+  // antwoord binnen is. Zonder token schreef het dan in het verkeerde tabblad.
+  const token = ++state.groupToken;
   state.currentGroup = group;
   state.dirty.clear();
 
@@ -856,8 +883,9 @@ async function selectGroup(group, node) {
   if (group.raw) {
     setBusy(true, `${group.label} laden…`);
     try {
-      await loadRawParams(node);
+      await loadRawParams(node, token);
     } catch (err) {
+      if (token !== state.groupToken) return;
       body.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
     } finally {
       setBusy(false);
@@ -868,6 +896,7 @@ async function selectGroup(group, node) {
   setBusy(true, `${group.label} laden…`);
   try {
     const sections = await fetchGroup(group, arg);
+    if (token !== state.groupToken) return;   // intussen een ander tabblad gekozen
     body.innerHTML = '';
     const total = renderGroupInto(body, group, sections, arg);
 
@@ -878,8 +907,15 @@ async function selectGroup(group, node) {
     }
     body.appendChild(makeSaveBar(() => selectGroup(group, node)));
   } catch (err) {
+    appendLog({ dir: 'err', text: `${group.get}: ${err.message}` });
+    if (token !== state.groupToken) return;
     body.innerHTML = '';
-    if (err instanceof DeviceLockedError) {
+    if (err instanceof NotPresentError) {
+      const p = document.createElement('p');
+      p.className = 'empty';
+      p.textContent = err.message;
+      body.appendChild(p);
+    } else if (err instanceof DeviceLockedError) {
       // Geen kale foutmelding: dit is op te lossen, en de knop staat vlak
       // boven deze tekst op dezelfde pagina.
       const p = document.createElement('p');
@@ -891,7 +927,6 @@ async function selectGroup(group, node) {
     } else {
       body.innerHTML = `<p class="empty">${escapeHtml(err.message)}</p>`;
     }
-    appendLog({ dir: 'err', text: `${group.get}: ${err.message}` });
   } finally {
     setBusy(false);
   }
@@ -1261,15 +1296,27 @@ async function loadDashboard() {
   const body = $('#dashboardBody');
   body.innerHTML = '<p class="empty">Laden…</p>';
 
-  const picks = ['swversion', 'boardinfo', 'network_info', 'fanctrlinfo', 'temperatureinfo', 'filterinfo'];
+  // Niet elke box kent dezelfde commando's: een Focus uit 2018 heeft geen
+  // fanctrlinfo, temperatureinfo, filterinfo of network_info, en hield met
+  // alleen de eerste set maar twee kaartjes over. De tweede helft vult aan met
+  // wat oudere firmware wél heeft; supports() laat per toestel alleen de
+  // bestaande door, en na acht kaartjes stoppen we.
+  const picks = [
+    'swversion', 'boardinfo', 'network_info', 'fanctrlinfo', 'temperatureinfo', 'filterinfo',
+    'FanSpeed', 'SensorInfo', 'NightBoostInfo', 'VentCoolInfo', 'AutoHcInfo',
+  ];
+  const MAX_CARDS = 8;
   const cards = [];
 
   setBusy(true, 'Dashboard laden…');
   for (const cmd of picks) {
+    if (cards.length >= MAX_CARDS) break;
     if (!duco.supports(cmd)) continue;
     try {
       const lines = await duco.sendCommandWithResponse(cmd, { timeoutSec: 4 });
       if (!lines.length) continue;
+      // Een kale 'Failed' of 'not present' is geen kaartje waard.
+      if (lines.every((l) => /^(failed|done|.*not present.*)$/i.test(l.trim()))) continue;
       const meta = INFO_COMMANDS.find((c) => c.cmd.toLowerCase() === cmd.toLowerCase());
       cards.push(renderInfoCard(meta?.label || cmd, lines));
     } catch (err) {
@@ -1393,12 +1440,23 @@ async function loadNetwork() {
 /** De box weigert sommige groepen zolang hij niet in installateursmodus staat. */
 class DeviceLockedError extends Error {}
 
+/** De box kent het commando, maar de bijbehorende hardware zit er niet in. */
+class NotPresentError extends Error {}
+
 async function fetchGroup(group, arg) {
   const cmd = group.get + (arg !== undefined && arg !== null ? ` ${arg}` : '');
   const lines = await duco.sendCommandWithResponse(cmd, { timeoutSec: 5 });
 
   if (lines.some((l) => /device\s+locked/i.test(l))) {
     throw new DeviceLockedError('Deze groep is vergrendeld door de box.');
+  }
+  // Een Focus zonder IO-module kent `IoParaGet` wel, maar antwoordt dan met
+  // 'IO not present'. Dat is geen fout; de module zit er gewoon niet in.
+  const absent = lines.find((l) => /\bnot\s+present\b/i.test(l));
+  if (absent) {
+    throw new NotPresentError(
+      `Deze box heeft dit onderdeel niet (de box meldt: "${absent.trim()}").`
+    );
   }
 
   const err = responseError(lines);
@@ -1437,6 +1495,46 @@ function paramMeta(group, sec, row) {
     if (match) pick = match;
   }
   return SETTINGS[pick.setting] || null;
+}
+
+/**
+ * Productcodes van de Focus-familie. Op een Focus (firmware 16010.4.7.0) gaven
+ * de instellingsgroepen hun waarden zonder bereik terug: `400 [rpm]` in plaats
+ * van `[0:5:600]`. Zonder bereik is niet te controleren wat een zinnige waarde
+ * is, en daar zit onder meer de lekfactor van de box tussen. Op de Focus blijven
+ * zulke parameters daarom alleen-lezen.
+ */
+const FOCUS_PRODUCT_CODES = new Set([12038, 16010, 22114, 22115]);
+
+function isFocusBox() {
+  if (FOCUS_PRODUCT_CODES.has(Number(state.boxProductVersion))) return true;
+  const box = state.nodes.find((n) => isBox(n));
+  return !!box && /focus/i.test(productName(box));
+}
+
+/**
+ * Welke parameternummers de box zelf instelbaar noemt voor een set-commando.
+ *
+ * `help /all` zegt dat soms met zoveel woorden: "set parameter a (0-14) to b",
+ * of met meerdere reeksen: "set register a (0-46|100-107) to b". Staat er geen
+ * reeks, dan geeft dit `null` terug en is er geen beperking bekend.
+ */
+function settableIds(setCmd) {
+  const help = (duco.commandHelp || {})[String(setCmd || '').toLowerCase()];
+  if (!help) return null;
+  const m = help.match(/\ba\s*\(([\d\s|\-]+)\)/);
+  if (!m) return null;
+  const ranges = m[1].split('|').map((part) => {
+    const [lo, hi] = part.split('-').map((x) => parseInt(x, 10));
+    return [lo, Number.isFinite(hi) ? hi : lo];
+  }).filter(([lo, hi]) => Number.isFinite(lo) && Number.isFinite(hi));
+  return ranges.length ? ranges : null;
+}
+
+function idIsSettable(setCmd, id) {
+  const ranges = settableIds(setCmd);
+  if (!ranges) return true;                  // de box noemt geen beperking
+  return ranges.some(([lo, hi]) => id >= lo && id <= hi);
 }
 
 /** Rendert alle secties van een groep in `container`; geeft het aantal rijen. */
@@ -1520,13 +1618,29 @@ function renderParamSection(group, sec, rows, node) {
 
     // Een write-only module levert geen waarde, maar is wel instelbaar zolang
     // het bereik bekend is.
+    // Geeft de box geen bereik mee, dan is een getal op andere boxen tóch te
+    // wijzigen — mits de box dat parameternummer instelbaar noemt. Op de Focus
+    // niet: zie FOCUS_PRODUCT_CODES.
+    const unbounded =
+      row.min === null &&
+      typeof row.value === 'number' &&
+      !sec.readonly &&
+      !!group.set &&
+      !isFocusBox() &&
+      idIsSettable(group.set, row.id);
     const writable =
-      !!group.set && !sec.readonly && (row.writable || (sec.writeOnly && row.min !== null));
+      !!group.set &&
+      !sec.readonly &&
+      (row.writable || (sec.writeOnly && row.min !== null) || unbounded);
+    if (unbounded) {
+      small.textContent += ' · geen bereik opgegeven';
+      el.classList.add('unbounded');
+    }
     const key = dirtyKey(group, node, sec, row);
     const markDirty = (field, value) => {
       const changed = value !== String(row.value ?? '');
       field.classList.toggle('dirty', changed);
-      if (changed) state.dirty.set(key, { group, node, sec, row, value, meta });
+      if (changed) state.dirty.set(key, { group, node, sec, row, value, meta, unbounded });
       else state.dirty.delete(key);
       updateSaveBars();
     };
@@ -1642,7 +1756,9 @@ async function writeDirty(onReload) {
         const opt = c.meta && c.meta.options && c.meta.options.find((o) => String(o.value) === String(v));
         return opt ? `${opt.label} (${v})` : v;
       };
-      return `${label}: ${show(c.row.value)} → ${show(c.value)}`;
+      const line = `${label}: ${show(c.row.value)} → ${show(c.value)}`;
+      // Zonder bereik controleert niemand de waarde vooraf, ook deze app niet.
+      return c.unbounded ? `${line}\n   ⚠ geen bereik opgegeven door de box — controleer de waarde zelf` : line;
     })
     .join('\n');
 
@@ -1901,7 +2017,12 @@ function saveLog() {
     `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())} ` +
     `${pad2(now.getHours())}.${pad2(now.getMinutes())} log VWT.txt`;
 
-  const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+  // Bewust alleen '\n'. Een logboek van een gebruiker kwam binnen met '\r\r\n'
+  // op elke regel: ergens tussen browser en mailbox werd elke '\n' nog eens
+  // '\r\n', bovenop de '\r' die er al stond. Met alleen '\n' levert zo'n
+  // omzetting een gewone '\r\n' op, en zonder omzetting leest elke editor het
+  // ook — ook Kladblok, sinds Windows 10.
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;

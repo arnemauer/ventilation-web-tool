@@ -382,6 +382,13 @@ export class DucoSerial {
         );
       if (cmds.length >= 5) {
         this.possibleCommands = cmds;
+        // De hulptekst bewaren: daar staat bij sommige set-commando's welke
+        // parameternummers de box accepteert, bv. "set parameter a (0-14) to b".
+        this.commandHelp = {};
+        for (const l of lines) {
+          const name = l.split(' ')[0];
+          if (name && cmds.includes(name)) this.commandHelp[name.toLowerCase()] = l;
+        }
         break;
       }
       // Kwam er helemaal niets binnen, dan luistert er niets mee en heeft nog

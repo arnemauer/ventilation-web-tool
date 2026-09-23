@@ -35,12 +35,13 @@ export const PARAM_GROUPS = [
   { id: 'io',            label: 'IO / netwerk',         get: 'IoParaGet',              set: 'ioParaSet', sectioned: true },
   { id: 'modbus',        label: 'Modbus',               get: 'ModbusParaGet',          set: 'modbusParaSet' , settingType: 'ModBus' },
   { id: 'nodeconfig',    label: 'Nodeconfiguratie',     get: 'NodeConfigGet',          set: 'nodeConfigSet', needsNode: true , settingType: 'NodeConfig' },
-  // Groepen die op de nieuwere firmware (23010) in `help /all` staan maar niet
-  // in de DLL-reconstructie voorkwamen.
+  // Groepen die pas later zijn waargenomen, op nieuwere firmware (23010).
   { id: 'flowmngr',      label: 'Debietbeheer',         get: 'FlowMngrParaGet',        set: 'FlowMngrParaSet' },
   { id: 'fanctrl',       label: 'Ventilatorregeling',   get: 'FanCtrlParaGet',         set: 'FanCtrlParaSet' },
   { id: 'sensor',        label: 'Sensor',               get: 'SensorParaGet',          set: 'SensorParaSet' },
   { id: 'fancalib',      label: 'Ventilatorkalibratie', get: 'FanCalibCfgParaGet',     set: 'FanCalibCfgParaSet' },
+  // Automatische bezettingsschatting; waargenomen op een Focus.
+  { id: 'autohc',        label: 'Automatische bezetting', get: 'AutoHcParaGet',        set: 'AutoHcParaSet' },
 ];
 
 /** Read-only informatiecommando's. Sommige leveren key/value, andere vrije tekst. */
@@ -75,6 +76,15 @@ export const INFO_COMMANDS = [
   { id: 'deviceinfo',     label: 'Toestel',              cmd: 'DeviceInfo' },
   { id: 'timeventinfo',   label: 'Tijdventilatie',       cmd: 'TimeVentInfo' },
   { id: 'timeprograminfo', label: 'Tijdprogramma',       cmd: 'TimeProgramInfo', timeoutSec: 8 },
+  // Waargenomen op een Focus (16010.4.7.0). Alleen-lezen.
+  { id: 'fanspeed',       label: 'Toerental',            cmd: 'FanSpeed' },
+  { id: 'fanperform',     label: 'Ventilatorprestatie',  cmd: 'FanPerformGet' },
+  { id: 'autohcinfo',     label: 'Automatische bezetting', cmd: 'AutoHcInfo' },
+  { id: 'ventcoolinfo',   label: 'Ventilatief koelen',   cmd: 'VentCoolInfo' },
+  { id: 'rfarbitrator',   label: 'RF-arbiter',           cmd: 'RfArbitratorInfo' },
+  { id: 'bmbreplaceinfo', label: 'Printvervanging',      cmd: 'BMBReplaceInfo' },
+  { id: 'swuploadstatus', label: 'Firmware-upload',      cmd: 'SwUploadStatus' },
+  { id: 'coregeterror',   label: 'Laatste fout',         cmd: 'CoreGetError' },
   { id: 'rtc',            label: 'Realtimeklok',         cmd: 'RtcGetTime' },
   { id: 'logprint',       label: 'Logboek',              cmd: 'LogPrint', timeoutSec: 10 },
 ];
@@ -132,6 +142,26 @@ export const DANGEROUS = new Set(
     'testmode',
     'boardset',
     'bootmode',
+
+    // Waargenomen op een Focus (firmware 16010.4.7.0). Deze grijpen in op de
+    // printplaat, het radiodeel of de ventilatorregeling.
+    'bmbreplacetobmb',     // overschrijft de gegevens op de print vanaf de SD-kaart
+    'bmbreplacetosd',      // schrijft de printgegevens naar de SD-kaart
+    'rfenable',            // RfEnable 0 koppelt alle draadloze componenten los
+    'commdlldefaults',     // radioregisters terug naar standaard
+    'commdllsetreg',       // schrijft een radioregister rechtstreeks
+    'dataallowsave',       // bepaalt of wijzigingen worden opgeslagen
+    'fancalibstart',       // start een kalibratie; de ventilator loopt de stappen af
+    'fancalibclear',       // wist de kalibratie
+    'fancalibset',         // schrijft de k-waarde van een klep
+    'fansettarget',        // overschrijft de ventilatorregeling met een vaste PWM
+    'fanspeedemul',        // laat de regeling rekenen met een verzonnen toerental
+    'fansetcorrection',    // past de ventilatorcurve aan
+    'fanpwmfrequencyset',  // wijzigt de PWM-frequentie naar de ventilator
+    'nodesetoverrule',     // houdt een component in een vaste stand
+    'virtadd',             // voegt een virtuele component toe
+    'virtremove',          // verwijdert virtuele componenten — ook bestaande
+    'virtinput',           // stuurt verzonnen invoer naar een virtuele component
   ].map((s) => s.toLowerCase())
 );
 

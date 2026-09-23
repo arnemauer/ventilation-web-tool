@@ -66,12 +66,16 @@ const DEFAULT_STATE = () => ({
 });
 
 /**
- * De parametergroepen. Elke groep kent een get- en set-commando; parameters
- * zonder bereik zijn read-only, precies zoals de echte box ze aanbiedt.
+ * De parametergroepen. Elke groep kent een get- en set-commando.
+ *
+ * `setIds` staat in de hulptekst van het set-commando, zoals een echte box het
+ * meldt ("set parameter a (0-4) to b"): welke nummers instelbaar zijn. Een
+ * parameter zonder bereik is dan wel te zetten, maar zonder begrenzing.
  */
 const DEFAULT_GROUPS = () => ({
   settingsparaget: {
     set: 'settingsparaset',
+    setIds: '0-3',
     params: [
       { id: 1, name: 'country',           value: 1,       min: 0,  step: 1, max: 4 },
       { id: 2, name: 'housing colour',    value: 0,       min: 0,  step: 1, max: 3 },
@@ -83,6 +87,7 @@ const DEFAULT_GROUPS = () => ({
   },
   fanparaget: {
     set: 'fanparaset',
+    setIds: '0-4',
     params: [
       { id: 1, name: 'Supply Flow Nominal',  value: 300, unit: 'm3/h', min: 0, step: 25, max: 600 },
       { id: 2, name: 'Exhaust Flow Nominal', value: 300, unit: 'm3/h', min: 0, step: 25, max: 600 },
@@ -306,7 +311,10 @@ class DucoEmulator {
   commandList() {
     const groupCmds = [];
     for (const [get, g] of Object.entries(this.groups)) {
-      groupCmds.push([get, 'read parameters'], [g.set, 'write parameter']);
+      groupCmds.push(
+        [get, 'read parameters'],
+        [g.set, g.setIds ? `set parameter a (${g.setIds}) to b` : 'write parameter']
+      );
     }
     return [
       ['help', 'show this list'],
@@ -369,10 +377,9 @@ class DucoEmulator {
   applySet(params, id, raw) {
     const p = params.find((x) => x.id === id);
     if (!p) return 'failed';
-    if (p.min === undefined) return 'failed';          // read-only
     const v = Number(raw);
     if (!Number.isFinite(v)) return 'failed';
-    if (v < p.min || v > p.max) return 'failed';       // buiten bereik
+    if (p.min !== undefined && (v < p.min || v > p.max)) return 'failed';  // buiten bereik
     p.value = v;
     this.unsaved = true;
     return 'done';
@@ -740,7 +747,15 @@ class DucoEmulator {
         ? this.nodeParams(setGroup, Number(args[0] || 1))
         : setGroup.params;
       if (!params) return ['failed'];
-      return [this.applySet(params, Number(args[offset]), args[offset + 1])];
+      const id = Number(args[offset]);
+      if (setGroup.setIds) {
+        const ok = setGroup.setIds.split('|').some((r) => {
+          const [lo, hi] = r.split('-').map(Number);
+          return id >= lo && id <= (Number.isFinite(hi) ? hi : lo);
+        });
+        if (!ok) return ['failed'];
+      }
+      return [this.applySet(params, id, args[offset + 1])];
     }
 
     return ['unknown cmd'];

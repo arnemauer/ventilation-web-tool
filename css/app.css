@@ -361,6 +361,11 @@ td.mono { font-family: var(--mono); }
 .param-name b { font-weight: 500; font-size: 13.5px; }
 .param-name small { color: var(--ink-3); font-size: 11.5px; font-family: var(--mono); }
 
+/* Bewerkbaar zonder door de box opgegeven bereik: zichtbaar anders, zodat
+   niemand denkt dat de invoer wordt begrensd. */
+.param.unbounded .param-name small { color: var(--warn); }
+.param.unbounded input { border-style: dashed; }
+
 .param-edit { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
 .param-edit input {
   width: 100px; padding: 5px 8px; font: inherit; font-family: var(--mono);
