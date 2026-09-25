@@ -37,6 +37,7 @@ import { createEmulatorPort, listProfiles } from './emulator.js';
 import { productName, isBox, STATE_LABEL, NETWORK_LABEL } from './products.js';
 import { SETTINGS, DEVICE_NAMES } from './paramMeta.js';
 import { NODE_PARA_LISTS } from './nodeParaLists.js';
+import { parseHelpLine, classify, callStyle, paraIdsFromList } from './probe.js';
 
 /* ------------------------------------------------------------------- state */
 
@@ -56,6 +57,7 @@ const state = {
   logEntries: [],
   history: [],
   historyIdx: -1,
+  probe: { running: false, stop: false },
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -72,7 +74,9 @@ const BOX_GROUPS = PARAM_GROUPS.filter((g) => !g.needsNode);
 function appendLog({ dir, text, bytes }) {
   const entry = { dir, text, bytes, at: new Date() };
   state.logEntries.push(entry);
-  if (state.logEntries.length > 5000) state.logEntries.shift();
+  // Een uitleesronde op Help mee levert al snel duizenden regels op; die
+  // mogen er niet vooraan uit vallen voordat het logboek is opgeslagen.
+  if (state.logEntries.length > 20000) state.logEntries.shift();
   renderLogEntry(entry);
 }
 
@@ -108,9 +112,11 @@ function describeControl(el) {
 const LOG_PREFIX = { tx: '>>', rx: '<<', ui: '##', sys: '--', err: '!!' };
 
 function renderLogEntry(entry) {
-  const log = $('#log');
-  if (!log) return;
+  // Hetzelfde logboek staat in de console en op Help mee.
+  for (const log of $$('pre.log')) renderLogEntryInto(log, entry);
+}
 
+function renderLogEntryInto(log, entry) {
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
   const cls = { tx: 'tx', rx: 'rx', sys: 'sy', err: 'er', ui: 'ui' }[entry.dir] || 'sy';
   const prefix = LOG_PREFIX[entry.dir] || '--';
@@ -134,7 +140,7 @@ function renderLogEntry(entry) {
 }
 
 function rerenderLog() {
-  $('#log').textContent = '';
+  $$('pre.log').forEach((log) => (log.textContent = ''));
   state.logEntries.forEach(renderLogEntry);
 }
 
@@ -166,11 +172,16 @@ function setBusy(on, what = '') {
 
   // Het logboek moet je juist kunnen opslaan als er iets misging, dus die
   // knoppen blijven altijd bereikbaar.
-  const ALWAYS_ON = ['btnDisconnect', 'btnConnect', 'btnSaveLog', 'btnSaveLogTop', 'btnClearLog'];
+  const ALWAYS_ON = [
+    'btnDisconnect', 'btnConnect', 'btnSaveLog', 'btnSaveLogTop', 'btnClearLog',
+    'btnSaveLogHelp', 'btnProbeStop',
+  ];
   $$('.btn').forEach((b) => {
     if (ALWAYS_ON.includes(b.id)) return;
     b.disabled = on || !state.connected;
   });
+
+  $('#probeHint').hidden = state.connected;
 
   // Halverwege wisselen tussen emulatie en hardware kan niet: eerst verbreken.
   $('#emulate').disabled = state.connected;
@@ -2033,6 +2044,221 @@ function saveLog() {
   toast(`Opgeslagen als ${name}`, 'ok');
 }
 
+/* ---------------------------------------------------------------- help mee */
+
+/** Wordt gegooid om een uitleesronde af te breken. */
+class ProbeStopped extends Error {}
+
+/** Langzame commando's: lange lijsten of logboeken. */
+const PROBE_SLOW = /^(logprint|testprint|dataraw|nodeparalist|help)\b/i;
+
+/** Hoe vaak een onbekend argument hooguit wordt opgehoogd. */
+const PROBE_MAX_ARG = 16;
+
+/** Hoeveel parameternummers per component hooguit worden gevraagd. */
+const PROBE_MAX_PARAS = 150;
+
+/**
+ * "Functies uitlezen": stuurt elk commando uit `help /all` dat alleen leest,
+ * en laat alles wat schrijft, wist of herstart liggen. Het resultaat zit in
+ * het logboek — daar gaat het om, want dat kan de gebruiker opsturen. Welke
+ * commando's veilig zijn, bepaalt probe.js.
+ *
+ * Commando's met argumenten worden ingevuld waar dat te raden is: een
+ * nodenummer met elke component uit het netwerk, een parameternummer met de
+ * bekende lijst van die component of met wat `NodeParaList` noemt, en een
+ * onbekend getal door op te hogen vanaf 0 tot de box twee keer weigert.
+ */
+async function runProbe() {
+  if (!state.connected) {
+    toast('Verbind eerst met de box', 'err');
+    return;
+  }
+  if (state.probe.running) return;
+  state.probe = { running: true, stop: false };
+
+  const status = $('#probeStatus');
+  const bar = $('#probeProgress');
+  $('#probeSummary').innerHTML = '';
+  $('#probeProgressBox').hidden = false;
+  $('#btnProbe').hidden = true;
+  $('#btnProbeStop').hidden = false;
+
+  const started = Date.now();
+  let total = 0;
+  let done = 0;
+  let answered = 0;
+  let refused = 0;
+  let stopped = false;
+  const skipped = [];
+
+  const setTotal = (n) => {
+    total = n;
+    bar.max = Math.max(1, total);
+  };
+
+  /** Eén commando; geeft de regels terug, of [] als er niets bruikbaars kwam. */
+  const ask = async (cmd) => {
+    if (state.probe.stop || !state.connected) throw new ProbeStopped();
+    const secs = Math.round((Date.now() - started) / 1000);
+    const perStep = done ? (Date.now() - started) / done : 1500;
+    const left = Math.max(0, Math.round(((total - done) * perStep) / 60000));
+    status.textContent =
+      `${done + 1} van ${total} · ${cmd} · ${Math.floor(secs / 60)}:${pad2(secs % 60)} bezig` +
+      (done > 5 ? ` · nog ongeveer ${left || '<1'} min` : '');
+
+    let lines = [];
+    try {
+      lines = await duco.sendCommandWithResponse(cmd, { timeoutSec: PROBE_SLOW.test(cmd) ? 10 : 5 });
+    } catch (err) {
+      appendLog({ dir: 'err', text: `${cmd}: ${err.message}` });
+    }
+    done++;
+    bar.value = done;
+    const ok = lines.length > 0 && !responseError(lines);
+    if (ok) answered++;
+    else refused++;
+    return ok ? lines : [];
+  };
+
+  appendLog({ dir: 'sys', text: '=== Functies uitlezen gestart — alleen lezen, er wordt niets geschreven ===' });
+  appendLog({ dir: 'sys', text: `Box: ${state.deviceLabel || 'onbekend'}` });
+
+  try {
+    // De commandolijst opnieuw, zodat het logboek op zichzelf compleet is.
+    status.textContent = 'Commandolijst ophalen…';
+    await duco.discoverCommands({ force: true });
+    if (state.probe.stop) throw new ProbeStopped();
+
+    const help = duco.commandHelp || {};
+    const plan = { none: [], perNode: [], probe: [], perNodePara: [] };
+    for (const name of duco.possibleCommands) {
+      const entry = parseHelpLine(help[name.toLowerCase()] || name);
+      const verdict = classify(entry);
+      if (verdict.kind !== 'read') {
+        if (verdict.kind !== 'skip') skipped.push({ name: entry.name, why: verdict.reason, kind: verdict.kind });
+        continue;
+      }
+      const style = callStyle(entry);
+      if (style === 'skip') {
+        skipped.push({ name: entry.name, why: `argumenten niet in te vullen (${entry.args.join(' ')})`, kind: 'unclear' });
+        continue;
+      }
+      plan[style].push(entry);
+    }
+
+    const writes = skipped.filter((s) => s.kind === 'write');
+    const unclear = skipped.filter((s) => s.kind !== 'write');
+    appendLog({
+      dir: 'sys',
+      text:
+        `Overgeslagen omdat ze iets wijzigen (${writes.length}): ` +
+        (writes.map((s) => s.name).join(', ') || '—'),
+    });
+    for (const s of unclear) appendLog({ dir: 'sys', text: `Overgeslagen: ${s.name} — ${s.why}` });
+
+    const nodes = state.nodes.length ? state.nodes.map((n) => n.node) : [1];
+    setTotal(1 + plan.none.length + plan.perNode.length * nodes.length + plan.probe.length * 3);
+
+    // Ook `help` zonder /all: sommige boxen tonen dan een andere indeling.
+    await ask('help');
+
+    let paraList = [];
+    for (const e of plan.none) {
+      const lines = await ask(e.name);
+      if (/^nodeparalist$/i.test(e.name)) paraList = lines;
+    }
+    for (const e of plan.perNode) {
+      for (const n of nodes) await ask(`${e.name} ${n}`);
+    }
+    for (const e of plan.probe) {
+      let misses = 0;
+      for (let a = 0; a < PROBE_MAX_ARG && misses < 2; a++) {
+        if (a >= 3) setTotal(total + 1);
+        const lines = await ask(`${e.name} ${a}`);
+        misses = lines.length ? 0 : misses + 1;
+      }
+    }
+
+    // Losse parameters per component. Dit is het langste deel, dus als laatste:
+    // stopt iemand halverwege, dan zit al het andere al in het logboek.
+    if (plan.perNodePara.length) {
+      const listed = paraIdsFromList(paraList);
+      const work = [];
+      for (const num of nodes) {
+        const node = state.nodes.find((n) => n.node === num);
+        const board = node ? boardForNode(node) : null;
+        const ids = (board ? board.params.map((p) => p.id) : listed).slice(0, PROBE_MAX_PARAS);
+        if (!ids.length) {
+          appendLog({ dir: 'sys', text: `Losse parameters van node ${num} overgeslagen: geen nummers bekend` });
+          continue;
+        }
+        work.push({ num, ids });
+      }
+      setTotal(total + work.reduce((sum, w) => sum + w.ids.length, 0) * plan.perNodePara.length);
+      for (const e of plan.perNodePara) {
+        for (const w of work) {
+          for (const id of w.ids) await ask(`${e.name} ${w.num} ${id}`);
+        }
+      }
+    }
+  } catch (err) {
+    if (err instanceof ProbeStopped) stopped = true;
+    else appendLog({ dir: 'err', text: `Functies uitlezen: ${err.message}` });
+  } finally {
+    state.probe.running = false;
+    $('#btnProbe').hidden = false;
+    $('#btnProbeStop').hidden = true;
+  }
+
+  const secs = Math.round((Date.now() - started) / 1000);
+  const took = `${Math.floor(secs / 60)}:${pad2(secs % 60)}`;
+  appendLog({
+    dir: 'sys',
+    text:
+      `=== Functies uitlezen ${stopped ? 'gestopt' : 'klaar'}: ${done} commando's in ${took}, ` +
+      `${answered} met antwoord, ${refused} geweigerd of leeg, ${skipped.length} overgeslagen ===`,
+  });
+  status.textContent = `${stopped ? 'Gestopt' : 'Klaar'} na ${done} commando's (${took}).`;
+  bar.value = stopped ? done : bar.max;
+  renderProbeSummary({ stopped, done, answered, refused, skipped });
+  toast(stopped ? 'Uitlezen gestopt' : 'Alle functies uitgelezen', stopped ? '' : 'ok');
+}
+
+function renderProbeSummary({ stopped, done, answered, refused, skipped }) {
+  const box = $('#probeSummary');
+  box.className = 'probe-summary';
+  box.innerHTML = '';
+
+  const p = (html) => {
+    const el = document.createElement('p');
+    el.innerHTML = html;
+    box.appendChild(el);
+  };
+  p(
+    `${stopped ? 'Gestopt' : 'Klaar'}: ${done} commando's verstuurd, ${answered} met antwoord, ` +
+      `${refused} geweigerd of zonder antwoord.`
+  );
+  p(
+    '<strong>Sla nu het logboek op</strong> en mail het naar ' +
+      '<a href="mailto:ventilationwebtool@gmail.com?subject=Logboek%20Ventilation%20Web%20Tool">' +
+      'ventilationwebtool@gmail.com</a>. Bedankt voor het meehelpen!'
+  );
+
+  if (skipped.length) {
+    const det = document.createElement('details');
+    det.innerHTML = `<summary>${skipped.length} commando's overgeslagen</summary>`;
+    const ul = document.createElement('ul');
+    for (const s of skipped) {
+      const li = document.createElement('li');
+      li.textContent = `${s.name} — ${s.why}`;
+      ul.appendChild(li);
+    }
+    det.appendChild(ul);
+    box.appendChild(det);
+  }
+}
+
 /* -------------------------------------------------------------------- init */
 
 function init() {
@@ -2134,11 +2360,17 @@ function init() {
 
   $('#btnClearLog').onclick = () => {
     state.logEntries = [];
-    $('#log').textContent = '';
+    $$('pre.log').forEach((log) => (log.textContent = ''));
   };
   $('#btnSaveLog').onclick = saveLog;
   // Ook in de balk, zodat je er niet eerst naar de console voor hoeft.
   $('#btnSaveLogTop').onclick = saveLog;
+  $('#btnSaveLogHelp').onclick = saveLog;
+  $('#btnProbe').onclick = runProbe;
+  $('#btnProbeStop').onclick = () => {
+    state.probe.stop = true;
+    $('#probeStatus').textContent = 'Stoppen na het lopende commando…';
+  };
   $('#showHex').onchange = rerenderLog;
 
   // Een losgetrokken kabel moet de UI niet in een verbonden staat achterlaten.

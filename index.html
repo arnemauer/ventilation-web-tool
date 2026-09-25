@@ -84,6 +84,11 @@
       <button class="nav-item" data-view="console">Console</button>
       <button class="nav-item" data-view="actions">Onderhoud</button>
     </div>
+
+    <div class="nav-section">
+      <h2>Meedoen</h2>
+      <button class="nav-item" data-view="help">Help mee</button>
+    </div>
   </nav>
 
   <section class="content" id="content">
@@ -183,6 +188,40 @@
         Handelingen die de hele installatie raken. Elke actie vraagt eerst om bevestiging.
       </p>
       <div id="actionsBody" class="cards"></div>
+    </div>
+
+    <!-- Help mee -->
+    <div class="view" data-view="help">
+      <div class="view-head"><h2>Help mee</h2></div>
+
+      <div class="banner-inline help-banner">
+        <p><strong>Nog niet alle functies van alle typen ventilatieboxen worden ondersteund.</strong>
+        Om alle verschillende functies te achterhalen hebben we hulp nodig.
+        Help mee door op de knop <em>Functies uitlezen</em> te drukken.</p>
+        <p>Wanneer je op de knop drukt, worden alle functies van de box uitgelezen,
+        samen met de antwoorden die de box erop geeft. Er wordt niets geschreven:
+        commando's die iets wijzigen, wissen of herstarten worden overgeslagen.</p>
+        <p>Sla daarna het logboek op en mail het naar
+        <a href="mailto:ventilationwebtool@gmail.com?subject=Logboek%20Ventilation%20Web%20Tool">ventilationwebtool@gmail.com</a>.
+        Vermeld er gerust bij welk type box je hebt.</p>
+      </div>
+
+      <div class="probe-actions">
+        <button class="btn primary" id="btnProbe">Functies uitlezen</button>
+        <button class="btn danger" id="btnProbeStop" hidden>Stoppen</button>
+        <button class="btn" id="btnSaveLogHelp"
+                title="Bewaar het volledige logboek — seriële communicatie én bediening — als tekstbestand">Logboek opslaan</button>
+      </div>
+      <p class="hint" id="probeHint">Verbind eerst met de box.</p>
+
+      <div class="probe-progress" id="probeProgressBox" hidden>
+        <progress id="probeProgress" value="0" max="1"></progress>
+        <span id="probeStatus"></span>
+      </div>
+      <div id="probeSummary"></div>
+
+      <h4 class="log-title">Logboek</h4>
+      <pre class="log" id="helpLog"></pre>
     </div>
 
   </section>

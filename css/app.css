@@ -436,6 +436,25 @@ td.mono { font-family: var(--mono); }
 .log .er { color: var(--danger); }
 .log .hex { color: var(--ink-3); font-size: 11px; }
 
+/* ---------------------------------------------------------------- help mee */
+
+.help-banner { font-size: 13.5px; padding: 12px 14px; }
+.help-banner p { margin: 0 0 8px; }
+.help-banner p:last-child { margin-bottom: 0; }
+.help-banner a, .probe-summary a { color: var(--accent); font-weight: 600; }
+.probe-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.probe-progress { display: flex; align-items: center; gap: 12px; margin: 6px 0 12px; font-size: 13px; color: var(--ink-2); flex-wrap: wrap; }
+.probe-progress progress { width: min(320px, 100%); accent-color: var(--accent); }
+.probe-summary { margin: 0 0 14px; font-size: 13px; }
+.probe-summary p { margin: 0 0 6px; }
+.probe-summary details { margin-top: 6px; color: var(--ink-2); }
+.probe-summary summary { cursor: pointer; }
+.probe-summary ul { margin: 6px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; }
+.log-title {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--ink-3); margin: 18px 0 8px; font-weight: 600;
+}
+
 /* -------------------------------------------------------------- toast/dialog */
 
 .toast {

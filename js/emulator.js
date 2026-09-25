@@ -307,52 +307,60 @@ class DucoEmulator {
     return v === undefined || v === null ? fallback : v;
   }
 
-  /** De commando's die dit toestel kent — de bron voor `help /all`. */
+  /**
+   * De commando's die dit toestel kent — de bron voor `help /all`. Elke regel
+   * is [naam met argumenten, uitleg], zoals een echte box ze toont:
+   * `NodeParaGet a b             NODE get para (b) of node (a)`.
+   */
   commandList() {
     const groupCmds = [];
     for (const [get, g] of Object.entries(this.groups)) {
+      const getHelp =
+        get === 'nodeconfigget' ? "NODE get config para's of node a"
+          : g.perNode ? 'MOTOR get parameter values of motor (a)'
+          : 'get parameter values';
       groupCmds.push(
-        [get, 'read parameters'],
-        [g.set, g.setIds ? `set parameter a (${g.setIds}) to b` : 'write parameter']
+        [g.perNode ? `${get} a` : get, getHelp],
+        [`${g.set} a b`, g.setIds ? `set parameter a (${g.setIds}) to b` : 'set parameter a to b']
       );
     }
     return [
-      ['help', 'show this list'],
-      ['swversion', 'show software version'],
-      ['boardinfo', 'show board information'],
-      ['network_info', 'show ip configuration'],
-      ['Network', 'show network node list'],
-      ['netwversion', 'show node firmware versions'],
-      ['netwserial', 'show node serial numbers'],
-      ['nodeinfo', 'show node detail'],
-      ['NodeParaGet', 'read single node parameter'],
-      ['NodeParaSet', 'write single node parameter'],
-      ['NodeParaList', 'list node parameter names'],
-      ['NodeSaveData', 'persist settings to flash'],
-      ['InstallerSet', 'INSTALL enter (a=1) or leave (a=0) installer mode'],
-      ['NodeSetParent', 'NODE set parent of node a to b'],
-      ['NodeSetAsso', 'NODE set asso of node a to b'],
+      ['Help ...', 'Print HELP menu'],
+      ['swversion', 'Print software version'],
+      ['boardinfo', 'BOARD info'],
+      ['network_info', 'NETW ip info'],
+      ['Network', 'NETW network table'],
+      ['netwversion', 'NETW version table'],
+      ['netwserial', 'NETW serial number table'],
+      ['nodeinfo a', 'NODE info of node (a)'],
+      ['NodeParaGet a b', 'NODE get para (b) of node (a)'],
+      ['NodeParaSet a b c', 'NODE set para (b) of node (a) to (c)'],
+      ['NodeParaList', 'NODE parameter list'],
+      ['NodeSaveData a', 'NODE save data on node (a)'],
+      ['InstallerSet a', 'INSTALL enter (a=1) or leave (a=0) installer mode'],
+      ['NodeSetParent a b', 'NODE set parent of node a to b'],
+      ['NodeSetAsso a b', 'NODE set asso of node a to b'],
       ['CommInfo', 'COMM info'],
-      ['nodeLoadDefaults', 'restore node factory settings'],
-      ['NodeReset', 'reboot a node'],
-      ['IoParaGet', 'read io parameters'],
-      ['ioParaSet', 'write io parameter'],
+      ['nodeLoadDefaults a', 'NODE load defaults on node (a)'],
+      ['NodeReset a', 'NODE reset node (a)'],
+      ['IoParaGet', 'IO get parameter values'],
+      ['ioParaSet a b c', 'IO set parameter (b) of module (a) to (c)'],
       ...groupCmds,
-      ['FanInfo', 'show fan information'],
-      ['fanctrlinfo', 'show fan control state'],
-      ['SensorInfo', 'show sensor values'],
-      ['temperatureinfo', 'show temperatures'],
-      ['pressureinfo', 'show pressures'],
-      ['filterinfo', 'show filter status'],
-      ['bypassinfo', 'show bypass state'],
-      ['StatusMonitorInfo', 'show status monitor'],
-      ['LogPrint', 'print event log'],
-      ['LogClear', 'clear event log'],
-      ['RtcGetTime', 'read realtime clock'],
-      ['RtcSetTime', 'set realtime clock'],
-      ['ResetToDefaults', 'restore factory settings'],
-      ['NetworkClear', 'remove all nodes'],
-      ['reset', 'reboot the box'],
+      ['FanInfo', 'FAN info'],
+      ['fanctrlinfo', 'FAN CTRL info'],
+      ['SensorInfo', 'SENSOR get info'],
+      ['temperatureinfo', 'TEMPERATURE info'],
+      ['pressureinfo', 'PRESSURE info'],
+      ['filterinfo', 'FILTER info'],
+      ['bypassinfo', 'BYPASS info'],
+      ['StatusMonitorInfo', 'STATUS MONITOR info'],
+      ['LogPrint', 'LOG print log'],
+      ['LogClear', 'LOG clear log'],
+      ['RtcGetTime', 'Get time'],
+      ['RtcSetTime a b c d e f', 'Set time (a=day of month, b=month(1-12), c=year, d=hour, e=minute, f=second)'],
+      ['ResetToDefaults', 'DATAMNGR reset to defaults'],
+      ['NetworkClear', 'NETW clear network (in installer mode only)'],
+      ['reset', 'Perform soft reset'],
     ];
   }
 
@@ -409,8 +417,9 @@ class DucoEmulator {
 
     // help /all
     if (cmd === 'help') {
-      const list = this.commandList().map(([c, d]) => `${c.padEnd(18)} ${d}`);
-      return ['Command            Use:', ...list, '--------'];
+      const list = this.commandList().map(([c, d]) => `${c.padEnd(27)} ${d}`);
+      const rule = '-------------------------------------------------';
+      return [rule, 'Command Help []', rule, ...list, rule, `Use: ${list.length}/110`];
     }
 
     switch (cmd) {
