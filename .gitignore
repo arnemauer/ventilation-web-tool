@@ -9,6 +9,7 @@ tools/genfixtures.py
 tools/genparammeta.py
 tools/genparalists.py
 tools/gennames.py
+tools/genlogprofile.py
 
 # Logboeken en captures van echte installaties — bevatten serienummers.
 logs/

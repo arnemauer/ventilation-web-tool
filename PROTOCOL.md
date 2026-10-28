@@ -9,7 +9,7 @@ Wat hier staat is gecontroleerd tegen sessielogboeken van werkende
 installaties.
 
 Het protocol blijkt over meerdere generaties servicetools onveranderd: 115200
-8N1, byte voor byte met 1 ms pauze. Wel is de uitvoer per firmwareversie iets
+8N1, byte voor byte met 1 ms pauze. Wel is de uitvoer per softwareversie iets
 verschillend opgemaakt; waar dat speelt staat het erbij.
 
 ## Fysieke laag
@@ -29,7 +29,7 @@ verschillend opgemaakt; waar dat speelt staat het erbij.
 ## Commando's schrijven
 
 Commando's worden **byte voor byte** geschreven met **1 ms pauze** tussen elke byte.
-Dat is geen toeval: de firmware-parser loopt achter bij een burst.
+Dat is geen toeval: de box loopt achter bij een burst.
 
 ```
 cmd = cmd.trim() + "\r\n"      // alleen toevoegen als nog niet aanwezig
@@ -92,7 +92,7 @@ wat het kan.
 ```
 
 Er is niet één regelformaat maar een handvol varianten, afhankelijk van
-firmwareversie en groep. Dit zijn de vormen die zijn waargenomen:
+softwareversie en groep. Dit zijn de vormen die zijn waargenomen:
 
 ```
 3. Fan Curve: 2 [0:1:4]                  naam en waarde gescheiden door ':'
@@ -103,9 +103,9 @@ firmwareversie en groep. Dit zijn de vormen die zijn waargenomen:
 5. TIME START 1320 ( 22u00) [0:5:1435]   met toelichting tussen haakjes
 7. CUTOFF REQUEST 80% [0:5:100]          procentteken vastgeplakt
 0. ADDRESS : 1 [1-253]                   bereik met een streepje, geen stap
-1. ACTIVE : TRUE                         nieuwere firmware: woord in plaats van 0/1
-3. START MONTH : April                   nieuwere firmware: maandnaam
-5. START TIME : 22:00                    nieuwere firmware: klokstand
+1. ACTIVE : TRUE                         nieuwere software: woord in plaats van 0/1
+3. START MONTH : April                   nieuwere software: maandnaam
+5. START TIME : 22:00                    nieuwere software: klokstand
 4. Max Speed: 3200 rpm                   geen bereik: alleen lezen
 ```
 
@@ -123,7 +123,7 @@ Een parser die dit allemaal aankan:
 5. Een eenheid staat direct achter de waarde, vastgeplakt (`22C`, `80%`) of
    met een spatie (`300 m3/h`). Tekst tussen haakjes is toelichting.
 
-Let op de spelfout `OFFFSET` in de Modbus-uitvoer — die zit in de firmware zelf,
+Let op de spelfout `OFFFSET` in de Modbus-uitvoer — die zit in de box zelf,
 dus daar moet je op matchen.
 
 ### Schrijven
@@ -186,7 +186,7 @@ ETHERNET INFO (2) [RO]
 BOARD INFO (3) [RO]
 ```
 
-Op oudere firmware heet `ETHERNET` hier `PICOTCP`. De `[RO]`-secties zijn
+Op oudere software heet `ETHERNET` hier `PICOTCP`. De `[RO]`-secties zijn
 alleen-lezen; daarbinnen staan onder meer `IP ADDRESS`, `NETWORK MASK`,
 `DEFAULT GATEWAY`, `MAC ADDRESS`, `DHCP ACTIVE : <woord> (<0|1>)` en in
 `BOARD INFO` de velden `SW PRODUCT`, `SW VERSION`, `SW REVISION`, `SW TEST`,
@@ -274,7 +274,7 @@ Zonder die modus weigert hij dat, en sommige parametergroepen antwoorden dan met
 De stand staat in de uitvoer van `CommInfo` op de regel met `install state`:
 de waarde **2** betekent dat de modus actief is. Diezelfde uitvoer bevat
 `module in asso`, `module in parent` en `module to replace`. De opmaak verschilt
-per firmware, dus zoek op het label en neem het eerste getal van die regel.
+per softwareversie, dus zoek op het label en neem het eerste getal van die regel.
 
 Netwerkwijzigingen horen hier consequent in gewikkeld te worden; zo doet de
 servicetool het op de lijn ook:

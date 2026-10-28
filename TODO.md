@@ -21,7 +21,7 @@ kabel worden vastgesteld.
 
 ### Nog niet gebouwd
 
-- **Firmware-uploaden** (`SwUpload*`, SD-kaart). Meerstaps binair protocol met
+- **Software-updates uploaden** (`SwUpload*`, SD-kaart). Meerstaps binair protocol met
   reëel risico op een onbruikbaar toestel bij een afgebroken overdracht.
   Bewust buiten deze versie gelaten.
 - **Ventilatorkalibratie-wizard** (`FanCalibStart`/`Next`/`Stop`). De
@@ -59,7 +59,7 @@ nagemeten voordat die beschrijving volledig opgaat:
   meten met een sweep van `NodeParaGet <node> <nr>` over het bereik, per
   componenttype.
 - **`js/ducoNames.js`** — productcode naar toestelnaam, en de uitgebrachte
-  firmwareversies. Grotendeels na te meten: `swversion` en `netwversion` geven
+  softwareversies. Grotendeels na te meten: `swversion` en `netwversion` geven
   de productcode van elk aangesloten toestel. Vergt wel toegang tot meer dan
   één installatie.
 - **`js/fixtures.js`** — de emulatieprofielen komen uit opgeslagen

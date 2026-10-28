@@ -14,7 +14,7 @@
  *     dit veld niet over de bus.
  */
 
-import { PRODUCT_BY_ID, FIRMWARE_RELEASES } from './ducoNames.js';
+import { PRODUCT_BY_ID, SOFTWARE_RELEASES } from './ducoNames.js';
 
 /**
  * productVersion -> modelfamilie. Nog niet volledig op hardware nagemeten;
@@ -196,9 +196,9 @@ export function productName(node) {
   return code ? `Onbekend type '${code}'` : 'Onbekend component';
 }
 
-/** Bekende firmwarereleases voor een productcode, nieuwste laatst. */
-export function knownFirmware(productVersion) {
-  return FIRMWARE_RELEASES[String(productVersion || '').trim()] || null;
+/** Bekende softwareversies voor een productcode, nieuwste laatst. */
+export function knownSoftware(productVersion) {
+  return SOFTWARE_RELEASES[String(productVersion || '').trim()] || null;
 }
 
 /** Is dit de mastercomponent (de box zelf)? */

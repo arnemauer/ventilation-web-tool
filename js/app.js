@@ -38,6 +38,7 @@ import { productName, isBox, STATE_LABEL, NETWORK_LABEL } from './products.js';
 import { SETTINGS, DEVICE_NAMES } from './paramMeta.js';
 import { NODE_PARA_LISTS } from './nodeParaLists.js';
 import { parseHelpLine, classify, callStyle, paraIdsFromList } from './probe.js';
+import { renderInfoBody, EMPTY } from './cards.js';
 
 /* ------------------------------------------------------------------- state */
 
@@ -340,7 +341,7 @@ function switchView(view) {
 
 /**
  * Bouwt de componentenlijst voor het menu. De drie tabelcommando's leveren
- * samen nummer, type, status, firmware en serienummer; de productcode per node
+ * samen nummer, type, status, softwareversie en serienummer; de productcode per node
  * halen we er daarna los bij op zodat de naam klopt.
  */
 async function loadNodes() {
@@ -463,7 +464,7 @@ function buildNodeTree(nodes) {
 
 /**
  * De foutcode uit de netwerktabel, bv. `E56.31.01`. De kolomkop verschilt per
- * firmware in hoofdlettergebruik, en een streepje betekent 'geen fout'.
+ * softwareversie in hoofdlettergebruik, en een streepje betekent 'geen fout'.
  *
  * De code wordt niet vertaald: er is geen tabel om hem mee te duiden, en een
  * verzonnen betekenis is erger dan een kale code.
@@ -733,7 +734,7 @@ function renderNodeHeader(node) {
   $('#nodeSubtitle').textContent =
     `Node ${node.node}` +
     (node.type ? ` · type ${node.type}` : '') +
-    (node.version && node.version !== 'N/A' ? ` · firmware ${node.version}` : '') +
+    (node.version && node.version !== 'N/A' ? ` · software ${node.version}` : '') +
     (node.productVersion ? ` · productcode ${node.productVersion}` : '');
 }
 
@@ -757,7 +758,7 @@ function buildNodeInfoCard(node, infoLines) {
     network: 'Netwerk',
     status: 'Status',
     state: 'Bedrijfstoestand',
-    software: 'Firmware',
+    software: 'Softwareversie',
     serial: 'Serienummer',
     target: 'Doelwaarde',
     current: 'Huidige waarde',
@@ -799,7 +800,7 @@ function buildNodeInfoCard(node, infoLines) {
   add('Bovenliggende node', node.prnt);
   add('Associatie', node.asso);
   add('Bedrijfstoestand', STATE_LABEL[node.stat] || node.stat);
-  add('Firmware', node.version);
+  add('Softwareversie', node.version);
   add('Serienummer', node.serial);
   add('Communicatiefouten', node.cerr);
   add('Foutcode', nodeErrorCode(node));
@@ -1310,11 +1311,12 @@ async function loadDashboard() {
   // Niet elke box kent dezelfde commando's: een Focus uit 2018 heeft geen
   // fanctrlinfo, temperatureinfo, filterinfo of network_info, en hield met
   // alleen de eerste set maar twee kaartjes over. De tweede helft vult aan met
-  // wat oudere firmware wél heeft; supports() laat per toestel alleen de
+  // wat oudere boxen wél hebben; supports() laat per toestel alleen de
   // bestaande door, en na acht kaartjes stoppen we.
   const picks = [
     'swversion', 'boardinfo', 'network_info', 'fanctrlinfo', 'temperatureinfo', 'filterinfo',
-    'FanSpeed', 'SensorInfo', 'NightBoostInfo', 'VentCoolInfo', 'AutoHcInfo',
+    'FanSpeed', 'FanGetSpeed', 'FanPerformGet', 'SensorInfo', 'NightBoostInfo', 'VentCoolInfo',
+    'AutoHcInfo',
   ];
   const MAX_CARDS = 8;
   const cards = [];
@@ -1329,7 +1331,8 @@ async function loadDashboard() {
       // Een kale 'Failed' of 'not present' is geen kaartje waard.
       if (lines.every((l) => /^(failed|done|.*not present.*)$/i.test(l.trim()))) continue;
       const meta = INFO_COMMANDS.find((c) => c.cmd.toLowerCase() === cmd.toLowerCase());
-      cards.push(renderInfoCard(meta?.label || cmd, lines));
+      const card = renderInfoCard(meta?.label || cmd, lines, cmd);
+      if (card) cards.push(card);
     } catch (err) {
       appendLog({ dir: 'err', text: `${cmd}: ${err.message}` });
     }
@@ -1344,23 +1347,20 @@ async function loadDashboard() {
   cards.forEach((c) => body.appendChild(c));
 }
 
-function renderInfoCard(title, lines) {
+/**
+ * Een kaartje voor het antwoord op een informatiecommando. Bekende vormen
+ * krijgen een eigen weergave (cards.js). Geeft `null` als het antwoord niets
+ * bevat — een box zonder eigen sensoren meldt bijvoorbeeld alleen een kop.
+ */
+function renderInfoCard(title, lines, cmd) {
+  const content = renderInfoBody(cmd, lines);
+  if (content === EMPTY) return null;
+
   const card = document.createElement('div');
   card.className = 'card';
-
-  const kvs = parseKeyValues(lines);
   const h = document.createElement('h3');
   h.textContent = title;
-  card.appendChild(h);
-
-  if (kvs.length >= 2) {
-    card.appendChild(renderKvList(kvs));
-  } else {
-    const pre = document.createElement('pre');
-    pre.style.cssText = 'margin:0;font-size:12px;white-space:pre-wrap;font-family:var(--mono)';
-    pre.textContent = lines.join('\n');
-    card.appendChild(pre);
-  }
+  card.append(h, content);
   return card;
 }
 
@@ -1509,7 +1509,7 @@ function paramMeta(group, sec, row) {
 }
 
 /**
- * Productcodes van de Focus-familie. Op een Focus (firmware 16010.4.7.0) gaven
+ * Productcodes van de Focus-familie. Op een Focus (versie 16010.4.7.0) gaven
  * de instellingsgroepen hun waarden zonder bereik terug: `400 [rpm]` in plaats
  * van `[0:5:600]`. Zonder bereik is niet te controleren wat een zinnige waarde
  * is, en daar zit onder meer de lekfactor van de box tussen. Op de Focus blijven
@@ -1848,7 +1848,8 @@ async function loadInfo() {
       const lines = await duco.sendCommandWithResponse(info.cmd, {
         timeoutSec: info.timeoutSec || 4,
       });
-      if (lines.length) cards.push(renderInfoCard(info.label, lines));
+      const card = lines.length ? renderInfoCard(info.label, lines, info.cmd) : null;
+      if (card) cards.push(card);
     } catch (err) {
       appendLog({ dir: 'err', text: `${info.cmd}: ${err.message}` });
     }

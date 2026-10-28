@@ -2,7 +2,7 @@
  * ducoNames.js — productidentificatie.
  *
  * Productidentificatie: welke productcode bij welk toestel hoort, en welke
- * firmwareversies daarvoor zijn uitgebracht. Feiten die je nodig hebt om te
+ * softwareversies daarvoor zijn uitgebracht. Feiten die je nodig hebt om te
  * weten met welk apparaat je praat.
  *
  * De namen van de componenten zelf staan in products.js, in eigen woorden.
@@ -133,7 +133,7 @@ export const PRODUCT_BY_ID = {
  "23010": "ENERGY L4v2"
 };
 
-export const FIRMWARE_RELEASES = {
+export const SOFTWARE_RELEASES = {
  "12030": [
   "8.3.0"
  ],

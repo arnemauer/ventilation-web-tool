@@ -11,12 +11,103 @@
  * Zonder profiel draait de emulator op verzonnen maar plausibele gegevens. Kies
  * je een profiel uit fixtures.js, dan komen de nodelijst, parameternamen en
  * waarden uit een opgeslagen installatiebestand.
+ *
+ * Welke commando's de nagebootste box kent, volgt uit zijn type (boxtypes.js):
+ * een Silent meldt geen temperaturen of luchtdebieten, want die heeft hij niet.
+ *
+ * Profielen uit fixtures-logs.js gaan verder: die geven letterlijk de antwoorden
+ * die een echte box gaf, inclusief zijn eigen `help /all`.
  */
 
 import { PROFILES } from './fixtures.js';
+import { LOG_PROFILES } from './fixtures-logs.js';
+import { BOX_FAMILIES, familyFor, commandsFor } from './boxtypes.js';
+
+const ALL_PROFILES = [...PROFILES, ...LOG_PROFILES];
 
 export function listProfiles() {
-  return PROFILES.map((p) => ({ id: p.id, label: p.label }));
+  return ALL_PROFILES.map((p) => ({ id: p.id, label: p.label }));
+}
+
+/** Beheercommando's die elke box kent, los van zijn type. */
+const CORE = new Set([
+  'help', 'swversion', 'boardinfo', 'network', 'netwversion', 'netwserial',
+  'nodeinfo', 'nodeparaget', 'nodeparaset', 'nodeparalist', 'nodesavedata',
+  'installerset', 'nodesetparent', 'nodesetasso', 'comminfo', 'nodeloaddefaults',
+  'nodereset', 'logprint', 'logclear', 'rtcgettime', 'rtcsettime',
+  'networkclear', 'reset',
+]);
+
+/* ------------------------------------------- waarden in een antwoordregel */
+
+const MONTHS = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST',
+  'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+];
+
+/** Het bereik achteraan een parameterregel: `[0:1:255]`, `[1-253]` of `[0:16]`. */
+function lineRange(text) {
+  let m = text.match(/\[(-?\d+):(-?\d+):(-?\d+)\]\s*$/);
+  if (m) return { min: Number(m[1]), max: Number(m[3]) };
+  m = text.match(/\[(-?\d+)[-:](-?\d+)\]\s*$/);
+  if (m) return { min: Number(m[1]), max: Number(m[2]) };
+  return null;
+}
+
+/** Vervangt `old` door `value`, zonder dat de kolommen verschuiven. */
+const fit = (old, value, right = false) =>
+  right ? String(value).padStart(old.length) : String(value).padEnd(old.length);
+
+const boolWord = (word, v) =>
+  /^(TRUE|FALSE)$/.test(word) ? (v ? 'TRUE' : 'FALSE') : v ? 'ON' : 'OFF';
+
+/**
+ * Zet een nieuwe waarde in een parameterregel zoals de box die toont. De box
+ * kent een handvol vormen: `400 (rpm) [0:1:65535]`, `0 (OFF) [0:1:1]`,
+ * `FALSE (0)`, `22:00 (1320)`, `MAY`, `NONE (0) [0-2]`. Geeft `null` als de
+ * waarde buiten het bereik valt of de vorm onbekend is.
+ */
+function setLineValue(line, v) {
+  const m = line.match(/^(\s*\d+\.[^:]*:\s?)(.*)$/);
+  if (!m || !Number.isInteger(v)) return null;
+  const [, head, rest] = m;
+  const range = lineRange(rest);
+  if (range && (v < range.min || v > range.max)) return null;
+
+  let r;
+  // Een getal vooraan, eventueel met een toelichting als (OFF) of (TRUE).
+  // (Niet het uur van een tijd als 22:00: die heeft een eigen regel hieronder.)
+  if ((r = rest.match(/^(\s*-?\d+)(?![\d:.])(\s*\((?:ON|OFF|TRUE|FALSE)\)\s*)?(.*)$/))) {
+    let label = r[2] || '';
+    if (label) {
+      const word = label.match(/(ON|OFF|TRUE|FALSE)/)[1];
+      label = fit(label, label.replace(word, boolWord(word, v)));
+    }
+    return head + fit(r[1], v, true) + label + r[3];
+  }
+  // Een woord als TRUE of OFF, eventueel met de waarde erachter: `FALSE (0)`.
+  if ((r = rest.match(/^(\s*)(TRUE|FALSE|ON|OFF)\b(.*)$/))) {
+    if (v !== 0 && v !== 1) return null;
+    const tail = r[3].replace(/\((\d+)\)/, `(${v})`);
+    return head + r[1] + boolWord(r[2], v) + tail;
+  }
+  // Een tijd met minuten erachter: `22:00 (1320)`.
+  if ((r = rest.match(/^(\s*\d{1,2}:\d{2})(\s*)\((\d+)\)(.*)$/))) {
+    if (v < 0 || v >= 1440) return null;
+    const hhmm = `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`;
+    return head + fit(r[1], hhmm, true) + r[2] + `(${v})` + r[4];
+  }
+  // Een maand.
+  if ((r = rest.match(/^(\s*)([A-Z]+)\s*$/)) && MONTHS.includes(r[2])) {
+    if (v < 1 || v > 12) return null;
+    return head + r[1] + MONTHS[v - 1];
+  }
+  // Een keuze met het nummer erachter: `NONE (0) [0-2]`. De naam bij een ander
+  // nummer is niet bekend, dus die blijft staan.
+  if ((r = rest.match(/^(.*?\()(-?\d+)(\).*)$/))) {
+    return head + r[1] + v + r[3];
+  }
+  return null;
 }
 
 /* ------------------------------------------------------------- basisgegevens */
@@ -243,7 +334,7 @@ const DEFAULT_IO = () => [
 
 class DucoEmulator {
   constructor(profileId) {
-    this.profile = PROFILES.find((p) => p.id === profileId) || null;
+    this.profile = ALL_PROFILES.find((p) => p.id === profileId) || null;
     this.reset(true);
   }
 
@@ -252,8 +343,56 @@ class DucoEmulator {
     this.groups = DEFAULT_GROUPS();
     this.io = DEFAULT_IO();
     this.rawParams = {};      // per node de losgeschreven genummerde parameters
-    if (this.profile) this.applyProfile();
+    this.canned = null;
+    if (this.profile?.canned) this.applyLogProfile();
+    else if (this.profile) this.applyProfile();
+    this.applyFamily();
     if (hard) this.unsaved = false;
+  }
+
+  /**
+   * Bepaalt welke commando's deze box kent. Een profiel uit een logboek heeft
+   * zijn eigen `help /all`; anders volgt het uit het type in boxtypes.js.
+   */
+  applyFamily() {
+    const id = this.state.identity;
+    this.family =
+      BOX_FAMILIES.find((f) => f.id === this.profile?.family) || familyFor(id.productVersion);
+
+    if (this.canned) {
+      this.commands = new Set(
+        (this.canned['help /all'] || [])
+          .map((l) => l.trim().split(/\s+/)[0].toLowerCase())
+          .filter((c) => c && !/^(-+|command|use:)$/.test(c))
+      );
+      return;
+    }
+    // Zonder productcode in de versie: "1.3.0" is al de versie zelf.
+    const sw = String(id.swVersion || '').split('.');
+    const version = sw.length === 4 ? sw.slice(1).join('.') : sw.join('.');
+    this.commands = commandsFor(this.family, version);
+  }
+
+  /** Kent deze box het commando? Een set-commando volgt zijn get-commando. */
+  available(cmd) {
+    if (this.canned) return cmd === 'help' || this.commands.has(cmd);
+    if (CORE.has(cmd) || !this.commands) return true;
+    if (cmd === 'network_info') return false;     // zit op de communicatieprint, niet op de box
+    if (cmd === 'resettodefaults') return this.family?.system === 'D';
+    if (this.commands.has(cmd)) return true;
+    return cmd.endsWith('set') && this.commands.has(cmd.replace(/set$/, 'get'));
+  }
+
+  /** Een profiel uit een logboek: de antwoorden van de box zelf. */
+  applyLogProfile() {
+    const p = this.profile;
+    this.canned = JSON.parse(JSON.stringify(p.canned));
+    this.state.identity = {
+      ...this.state.identity,
+      model: p.label,
+      swVersion: `${p.productVersion}.${p.version}`,
+      productVersion: p.productVersion,
+    };
   }
 
   /**
@@ -328,7 +467,6 @@ class DucoEmulator {
       ['Help ...', 'Print HELP menu'],
       ['swversion', 'Print software version'],
       ['boardinfo', 'BOARD info'],
-      ['network_info', 'NETW ip info'],
       ['Network', 'NETW network table'],
       ['netwversion', 'NETW version table'],
       ['netwserial', 'NETW serial number table'],
@@ -346,6 +484,8 @@ class DucoEmulator {
       ['IoParaGet', 'IO get parameter values'],
       ['ioParaSet a b c', 'IO set parameter (b) of module (a) to (c)'],
       ...groupCmds,
+      ['FanSpeed', 'FAN get speed'],
+      ['FanGetSpeed', 'FAN get speed'],
       ['FanInfo', 'FAN info'],
       ['fanctrlinfo', 'FAN CTRL info'],
       ['SensorInfo', 'SENSOR get info'],
@@ -361,7 +501,7 @@ class DucoEmulator {
       ['ResetToDefaults', 'DATAMNGR reset to defaults'],
       ['NetworkClear', 'NETW clear network (in installer mode only)'],
       ['reset', 'Perform soft reset'],
-    ];
+    ].filter(([c]) => this.available(c.split(' ')[0].toLowerCase()));
   }
 
   /* ---------------------------------------------------------- hulpfuncties */
@@ -415,12 +555,17 @@ class DucoEmulator {
     const args = parts.slice(1);
     const st = this.state;
 
+    if (this.canned) return this.handleCanned(cmd, args);
+
     // help /all
     if (cmd === 'help') {
       const list = this.commandList().map(([c, d]) => `${c.padEnd(27)} ${d}`);
       const rule = '-------------------------------------------------';
       return [rule, 'Command Help []', rule, ...list, rule, `Use: ${list.length}/110`];
     }
+
+    // Wat dit type box niet kent, kent de emulator ook niet.
+    if (!this.available(cmd)) return ['unknown cmd'];
 
     switch (cmd) {
       case 'swversion': {
@@ -441,7 +586,9 @@ class DucoEmulator {
 
       case 'boardinfo':
         return [
-          `Board Type: ${st.identity.boardType}`,
+          // De generieke Energy heeft een communicatieprint; een profiel van een
+          // ander type niet, dus dat noemt alleen zijn eigen type.
+          `Board Type: ${this.profile && this.family?.id !== 'energy-comfort' ? this.family?.label || 'DucoBox' : st.identity.boardType}`,
           `Board Rev: ${st.identity.boardRev}`,
           `Serial: ${st.identity.serial}`,
           `Uptime: ${this.uptime()}`,
@@ -497,7 +644,7 @@ class DucoEmulator {
 
         // Een node die niet reageert antwoordt op elk veld met 'Failed'; dat
         // gedrag hoort de emulator na te doen, anders is die situatie niet te
-        // testen. Herkenbaar aan een node zonder firmwareversie.
+        // testen. Herkenbaar aan een node zonder softwareversie.
         if (n.version === 'Failed') {
           return [
             `Node    ${n.node}`,
@@ -664,13 +811,29 @@ class DucoEmulator {
           `Exhaust Actual: ${st.fan.exhaustActual} %`,
         ];
 
-      case 'sensorinfo':
+      case 'sensorinfo': {
+        // Alleen nodes die echt een CO2- of vochtwaarde hebben. Een box zonder
+        // eigen sensoren geeft, net als een Focus, alleen de kop.
+        const rows = st.nodes.flatMap((n) => [
+          ...(typeof n.co2 === 'number' ? [`Node ${n.node} CO2: ${n.co2} ppm`] : []),
+          ...(typeof n.rh === 'number' ? [`Node ${n.node} RH: ${n.rh} %`] : []),
+        ]);
+        return rows.length ? rows : ['[SENSOR] INFO'];
+      }
+
+      case 'fanspeed':
+      case 'fangetspeed': {
+        // Zelfde vorm als op een Focus of Silent.
+        const rpm = Math.round(this.sensor('FanspeedFiltered', st.fan.supplyRpm));
+        const col = (v) => String(v).padStart(4);
         return [
-          `Node 2 CO2: ${st.nodes[1].co2} ppm`,
-          `Node 2 RH: ${st.nodes[1].rh} %`,
-          `Node 3 CO2: ${st.nodes[2].co2} ppm`,
-          `Node 3 RH: ${st.nodes[2].rh} %`,
+          'FanSpeed (fan 1)',
+          `- Actual   : ${col(rpm + 6)} [rpm]`,
+          `- Filtered : ${col(rpm)} [rpm]`,
+          `- Average  : ${col(rpm + 2)} [rpm]`,
+          'Done',
         ];
+      }
 
       case 'temperatureinfo':
         return [
@@ -770,6 +933,146 @@ class DucoEmulator {
     return ['unknown cmd'];
   }
 
+  /**
+   * Een box uit een logboek. Leesvragen krijgen het antwoord dat de echte box
+   * gaf; instellingen, installateursmodus, topologie en klok houden de emulator
+   * zelf bij, zodat schrijven en teruglezen klopt.
+   */
+  handleCanned(cmd, args) {
+    const c = this.canned;
+    const st = this.state;
+    const key = [cmd, ...args].join(' ').toLowerCase();
+
+    if (cmd === 'help') return c[key] || c['help /all'];
+    if (!this.available(cmd)) return ['unknown cmd'];
+
+    switch (cmd) {
+      case 'installerset':
+        st.installState = Number(args[0]) === 1 ? 2 : 0;
+        return ['Done'];
+
+      case 'comminfo':
+        return c.comminfo.map((l) =>
+          l.replace(
+            /(install state\s+)\d+ : \S+/,
+            `$1${st.installState} : ${st.installState === 2 ? 'INSTALLER' : 'OPERATIONAL'}`
+          )
+        );
+
+      case 'nodesetparent':
+      case 'nodesetasso': {
+        if (st.installState !== 2) return ['Device Locked', 'Failed'];
+        const col = cmd === 'nodesetparent' ? 7 : 8;
+        const row = c.network.findIndex((l) => l.split('|')[0].trim() === String(Number(args[0])));
+        const target = Number(args[1]);
+        const exists = target === 0 || c.network.some((l) => l.split('|')[0].trim() === String(target));
+        if (row < 0 || !exists) return ['Failed'];
+        const cells = c.network[row].split('|');
+        cells[col] = String(target).padEnd(cells[col].length);
+        c.network[row] = cells.join('|');
+        this.unsaved = true;
+        return ['Done'];
+      }
+
+      case 'rtcgettime': {
+        const d = this.clock();
+        const p = (n) => String(n).padStart(2, '0');
+        const day = d.toLocaleDateString('en-GB', { weekday: 'long' }).toUpperCase();
+        return [
+          `[RTC] ${day} ${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ` +
+            `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+          'Done',
+        ];
+      }
+
+      case 'rtcsettime': {
+        // a=dag, b=maand, c=jaar, d=uur, e=minuut, f=seconde
+        if (args.length < 6) return ['Incorrect Cmd Arguments'];
+        const [D, M, Y, h, m, sec] = args.map(Number);
+        st.rtc = new Date(Y, M - 1, D, h, m, sec).getTime();
+        return ['Done'];
+      }
+
+      case 'nodesavedata':
+        this.unsaved = false;
+        return ['Done'];
+
+      case 'logclear':
+        c.logprint = ['Done'];
+        return ['Done'];
+
+      case 'nodeparaget':
+        return c[key] || [`Get PARA ${args[1]} of NODE ${args[0]}`, 'Failed'];
+
+      case 'nodeparaset': {
+        const [node, para, value] = args.map(Number);
+        const get = `nodeparaget ${node} ${para}`;
+        if (!c[get] || c[get].includes('Failed') || !Number.isFinite(value)) return ['Failed'];
+        c[get] = [`Get PARA ${para} of NODE ${node}`, `--> ${value}`, 'Done'];
+        this.unsaved = true;
+        return [`Set PARA ${para} of NODE ${node} to ${value}`, 'Done'];
+      }
+
+      default:
+        break;
+    }
+
+    if (cmd.endsWith('set')) return this.cannedSet(cmd, args);
+    return c[key] || (!args.length && c[cmd]) || ['Done'];
+  }
+
+  /** Schrijft een parameter in het bewaarde antwoord van het bijbehorende get-commando. */
+  cannedSet(cmd, args) {
+    const c = this.canned;
+    let lines;
+    let id;
+    let value;
+
+    if (cmd === 'nodeconfigset') {
+      lines = c[`nodeconfigget ${Number(args[0])}`];
+      [id, value] = [Number(args[1]), Number(args[2])];
+    } else if (cmd === 'ioparaset') {
+      // IoParaSet <module> <parameter> <waarde>: zoek het blok van die module.
+      if (args.length < 3) return [`Incorrect Cmd Arguments (found ${args.length}, expected 3)`];
+      const io = c.ioparaget || [];
+      const start = io.findIndex((l) => new RegExp(`\\(${Number(args[0])}\\) \\[(RW|WO)\\]`).test(l));
+      if (start < 0) return ['Failed'];
+      const end = io.findIndex((l, i) => i > start && /\(\d+\) \[(RW|RO|WO)\]/.test(l));
+      lines = io;
+      [id, value] = [Number(args[1]), Number(args[2])];
+      const idx = io.findIndex(
+        (l, i) => i > start && (end < 0 || i < end) && new RegExp(`^\\s*${id}\\.`).test(l)
+      );
+      const next = idx < 0 ? null : setLineValue(io[idx], value);
+      if (!next) return ['Failed'];
+      io[idx] = next;
+      this.unsaved = true;
+      return ['Done'];
+    } else {
+      lines = c[cmd.replace(/set$/, 'get')];
+      [id, value] = [Number(args[0]), Number(args[1])];
+      // De hulptekst noemt welke nummers instelbaar zijn: "set parameter a (0-14) to b".
+      const help = (c['help /all'] || []).find((l) => l.trim().toLowerCase().startsWith(cmd + ' '));
+      const ids = help && help.match(/\ba\s*\(([\d\s|\-]+)\)/);
+      if (ids) {
+        const ok = ids[1].split('|').some((r) => {
+          const [lo, hi] = r.split('-').map(Number);
+          return id >= lo && id <= (Number.isFinite(hi) ? hi : lo);
+        });
+        if (!ok) return ['Failed'];
+      }
+    }
+
+    // Een set-commando zonder bewaard get-antwoord (bv. CoreLogLevel): niets bij te houden.
+    if (!lines) return ['Done'];
+    const idx = lines.findIndex((l) => new RegExp(`^\\s*${id}\\.`).test(l));
+    const next = idx < 0 ? null : setLineValue(lines[idx], value);
+    if (!next) return ['Failed'];
+    lines[idx] = next;
+    this.unsaved = true;
+    return ['Done'];
+  }
+
   /** Per-node-groepen houden een eigen kopie per node vast. */
   nodeParams(group, node) {
     if (!group._byNode) group._byNode = {};
@@ -789,7 +1092,6 @@ class DucoEmulator {
  */
 export function createEmulatorPort({ latencyMs = 30, profileId = null } = {}) {
   const device = new DucoEmulator(profileId);
-  const encoder = new TextEncoder();
 
   let rxController = null;
   let closed = false;
@@ -803,20 +1105,22 @@ export function createEmulatorPort({ latencyMs = 30, profileId = null } = {}) {
     },
   });
 
-  // De box spreekt puur ASCII en de ontvanger decodeert ook als ASCII. Zou de
-  // emulator hier UTF-8 doorlaten, dan lees je mojibake terug — dus vouwen we
-  // alles buiten ASCII plat, precies zoals echte hardware zou doen.
-  const toAscii = (text) =>
-    text
-      .replace(/[‐-―]/g, '-')
-      .replace(/[‘’]/g, "'")
-      .replace(/[“”]/g, '"')
-      .replace(/[^\x00-\x7F]/g, '?');
+  // De box stuurt één byte per teken: ASCII, plus het gradenteken als 0xB0.
+  // Zou de emulator UTF-8 doorlaten, dan lees je mojibake terug — dus gaat
+  // elk teken als één byte, en wat daar niet in past wordt een vraagteken.
+  const toBytes = (text) =>
+    Uint8Array.from(
+      text
+        .replace(/[‐-―]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"'),
+      (ch) => (ch.charCodeAt(0) < 0x80 || ch === '°' ? ch.charCodeAt(0) : 0x3f)
+    );
 
   const emit = (text) => {
     if (!rxController || closed) return;
     try {
-      rxController.enqueue(encoder.encode(toAscii(text)));
+      rxController.enqueue(toBytes(text));
     } catch {
       /* stream al gesloten */
     }
@@ -835,7 +1139,10 @@ export function createEmulatorPort({ latencyMs = 30, profileId = null } = {}) {
 
       const lines = device.handle(line);
       // De echte box echoot het commando terug, en sluit af met zijn prompt.
-      setTimeout(() => emit(line + '\r' + lines.join('\r') + '\r\n>'), latencyMs);
+      // Elke regel krijgt twee spaties inspringing, en de prompt is "\r> " —
+      // mét een spatie erachter, zoals op de echte box.
+      const body = lines.map((l) => '  ' + l).join('\r');
+      setTimeout(() => emit(line + '\r' + body + '\r  \r> '), latencyMs);
     },
   });
 

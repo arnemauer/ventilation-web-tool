@@ -40,9 +40,15 @@ De emulator houdt echt staat vast: wat je wegschrijft lees je terug, en een
 waarde buiten het toegestane bereik komt terug als `failed`, net als bij
 hardware. Zolang emulatie loopt is dat aan de oranje balk en de badge te zien.
 
-De profielen zijn gemaakt naar drie werkelijke installaties, zodat de nodelijst,
+De profielen zijn gemaakt naar werkelijke installaties, zodat de nodelijst,
 de parameternamen en de waarden overeenkomen met wat je in het veld tegenkomt.
 Serienummers zijn geanonimiseerd.
+
+Elk profiel gedraagt zich als zijn type box: een Silent of Focus kent geen
+temperaturen of luchtdebieten, een Energy wel. Het Focus-profiel geeft
+letterlijk de antwoorden van een echte Focus (16010.10.4.0), inclusief zijn
+eigen commandolijst. Het Silent Connect-profiel is daarvan afgeleid: zelfde
+commandoset, zonder kleppen.
 
 Emulatie werkt ook in browsers zonder Web Serial.
 
@@ -145,12 +151,16 @@ js/serial.js        Web Serial transport — poort, timing, commando's, discover
 js/protocol.js      parsers: parameterlijsten, tabellen, secties, key/value
 js/groups.js        landkaart van de commando-oppervlakte
 js/products.js      typecode/productcode -> naam, en de componentnamen zelf
+js/boxtypes.js      welke uitlees- en instelcommando's elk type box kent
+js/cards.js         leesbare kaartjes voor de informatiecommando's
+js/probe.js         welke commando's "Functies uitlezen" veilig kan versturen
 js/emulator.js      nagebootste box achter een SerialPort-façade
 js/app.js           UI-logica
 
   gegenereerde gegevenstabellen:
 js/fixtures.js      emulatieprofielen naar werkelijke installaties
-js/ducoNames.js     productcodes en uitgebrachte firmwareversies
+js/fixtures-logs.js emulatieprofielen uit het logboek van een echte box
+js/ducoNames.js     productcodes en uitgebrachte softwareversies
 js/paramMeta.js     labels, hulpteksten en keuzelijsten per parameter
 js/nodeParaLists.js genummerde parameters per printtype
 
@@ -169,7 +179,7 @@ uitleg — het gaat om een ventilatiesysteem.
 ## Details die ertoe doen
 
 **Byte-voor-byte schrijven.** Commando's gaan met 1 ms pauze per byte naar de
-box. Een burst loopt de parser in de firmware voorbij. Niet wegoptimaliseren.
+box. Een burst loopt de box voorbij. Niet wegoptimaliseren.
 De pauze loopt op de klok in plaats van op een timer, omdat browsers timers in
 een achtergrondtabblad tot één tick per seconde afknijpen.
 
@@ -196,4 +206,4 @@ getypt.
 
 Zie [TODO.md](TODO.md) voor de volledige stand: wat af is, wat nog op hardware
 bevestigd moet worden, en wat bewust buiten deze versie is gelaten
-(firmware-uploaden bovenaan — dat kan een toestel onbruikbaar maken).
+(software-updates uploaden bovenaan — dat kan een toestel onbruikbaar maken).

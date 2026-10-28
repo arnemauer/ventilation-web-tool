@@ -19,7 +19,7 @@
 /**
  * Zoekt het eerste getal op een regel die `label` bevat.
  *
- * `CommInfo` en verwanten geven vrije tekst waarin de opmaak per firmware
+ * `CommInfo` en verwanten geven vrije tekst waarin de opmaak per softwareversie
  * verschilt ("install state : 2", "- install state  2"). Zoeken op het label
  * en dan het eerste getal pakken werkt in al die varianten.
  */
@@ -84,7 +84,7 @@ export function parseParaList(lines) {
     }
     body = body.trim();
 
-    // Twee vormen komen voor, afhankelijk van firmware en groep:
+    // Twee vormen komen voor, afhankelijk van softwareversie en groep:
     //   "3. Fan Curve: 2"     — naam en waarde gescheiden door een dubbele punt
     //   "1. ENABLE 1"         — geen dubbele punt; de waarde is het eerste getal
     let valuePart = null;
@@ -120,7 +120,7 @@ export function parseParaList(lines) {
     }
 
     if (/^(true|false)$/i.test(first)) {
-      // Nieuwere firmware meldt aan/uit als woord; de set-kant blijft 0 en 1.
+      // Nieuwere software meldt aan/uit als woord; de set-kant blijft 0 en 1.
       row.value = /^true$/i.test(first) ? 1 : 0;
       row.boolean = true;
       if (row.min === null) {

@@ -4,7 +4,7 @@
  * Volgt de dialoog zoals die op de lijn is waargenomen. Zie PROTOCOL.md.
  *
  * Het einde van een antwoord wordt herkend aan de prompt die de box stuurt.
- * Stiltedetectie dient alleen als noodrem voor firmware die geen prompt geeft:
+ * Stiltedetectie dient alleen als noodrem voor een box die geen prompt geeft:
  * een echte box laat midden in een antwoord gaten van bijna een seconde vallen,
  * dus stilte alléén is geen betrouwbaar signaal.
  */
@@ -43,10 +43,10 @@ export class DucoSerial {
     this._stopping = false;
     this._queue = Promise.resolve();
 
-    // Noodrem voor firmware zonder prompt. Ruim bemeten: een echte box laat
+    // Noodrem voor een box zonder prompt. Ruim bemeten: een echte box laat
     // gaten van bijna een seconde vallen midden in een antwoord.
     this.quietMs = 1500;
-    this.interByteMs = 1;    // pauze tussen verzonden bytes (firmware-parser)
+    this.interByteMs = 1;    // pauze tussen verzonden bytes (de box leest traag)
     this._promptSeen = false;
     this._rxWaiters = [];
     this.possibleCommands = [];
@@ -153,7 +153,7 @@ export class DucoSerial {
     return run;
   }
 
-  /** Schrijft byte voor byte met pauze — een burst loopt de firmware-parser voorbij. */
+  /** Schrijft byte voor byte met pauze — een burst loopt de box voorbij. */
   async _writeSlow(text) {
     const bytes = new TextEncoder().encode(text);
     for (const b of bytes) {
@@ -165,7 +165,7 @@ export class DucoSerial {
   /**
    * De box sluit een antwoord af met zijn prompt: een '>' direct achter een
    * regeleinde. Daarop wachten is nauwkeuriger en sneller dan op stilte
-   * wachten, maar niet elke firmware stuurt hem — dus valt dit terug op de
+   * wachten, maar niet elke box stuurt hem — dus valt dit terug op de
    * stiltedetectie zodra er een tijdje niets meer binnenkomt.
    */
   /**
@@ -190,7 +190,11 @@ export class DucoSerial {
   }
 
   _atPrompt() {
-    const n = this._buf.length;
+    // De box sluit af met "\r> ": een spatie ná het groter-dan-teken. Zonder
+    // die mee te tellen werd de prompt nooit herkend en wachtte elk commando op
+    // stilte of op zijn volledige timeout.
+    let n = this._buf.length;
+    while (n > 0 && this._buf[n - 1] === 0x20) n--;
     if (n < 2 || this._buf[n - 1] !== 0x3e) return false; // '>'
     const prev = this._buf[n - 2];
     return prev === 0x0d || prev === 0x0a; // '\r' of '\n'

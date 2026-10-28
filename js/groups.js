@@ -35,7 +35,7 @@ export const PARAM_GROUPS = [
   { id: 'io',            label: 'IO / netwerk',         get: 'IoParaGet',              set: 'ioParaSet', sectioned: true },
   { id: 'modbus',        label: 'Modbus',               get: 'ModbusParaGet',          set: 'modbusParaSet' , settingType: 'ModBus' },
   { id: 'nodeconfig',    label: 'Nodeconfiguratie',     get: 'NodeConfigGet',          set: 'nodeConfigSet', needsNode: true , settingType: 'NodeConfig' },
-  // Groepen die pas later zijn waargenomen, op nieuwere firmware (23010).
+  // Groepen die pas later zijn waargenomen, op nieuwere boxen (23010).
   { id: 'flowmngr',      label: 'Debietbeheer',         get: 'FlowMngrParaGet',        set: 'FlowMngrParaSet' },
   { id: 'fanctrl',       label: 'Ventilatorregeling',   get: 'FanCtrlParaGet',         set: 'FanCtrlParaSet' },
   { id: 'sensor',        label: 'Sensor',               get: 'SensorParaGet',          set: 'SensorParaSet' },
@@ -78,15 +78,19 @@ export const INFO_COMMANDS = [
   { id: 'timeprograminfo', label: 'Tijdprogramma',       cmd: 'TimeProgramInfo', timeoutSec: 8 },
   // Waargenomen op een Focus (16010.4.7.0). Alleen-lezen.
   { id: 'fanspeed',       label: 'Toerental',            cmd: 'FanSpeed' },
+  // Dezelfde vraag; nieuwere versies (o.a. Focus 16010.10) noemen hem zo.
+  { id: 'fangetspeed',    label: 'Toerental',            cmd: 'FanGetSpeed' },
   { id: 'fanperform',     label: 'Ventilatorprestatie',  cmd: 'FanPerformGet' },
   { id: 'autohcinfo',     label: 'Automatische bezetting', cmd: 'AutoHcInfo' },
   { id: 'ventcoolinfo',   label: 'Ventilatief koelen',   cmd: 'VentCoolInfo' },
   { id: 'rfarbitrator',   label: 'RF-arbiter',           cmd: 'RfArbitratorInfo' },
   { id: 'bmbreplaceinfo', label: 'Printvervanging',      cmd: 'BMBReplaceInfo' },
-  { id: 'swuploadstatus', label: 'Firmware-upload',      cmd: 'SwUploadStatus' },
+  { id: 'swuploadstatus', label: 'Software-update',      cmd: 'SwUploadStatus' },
   { id: 'coregeterror',   label: 'Laatste fout',         cmd: 'CoreGetError' },
   { id: 'rtc',            label: 'Realtimeklok',         cmd: 'RtcGetTime' },
   { id: 'logprint',       label: 'Logboek',              cmd: 'LogPrint', timeoutSec: 10 },
+  { id: 'fancalib',       label: 'Inregeling kleppen',   cmd: 'FanCalib' },
+  { id: 'servicecode',    label: 'Servicecode',          cmd: 'ServiceCode' },
 ];
 
 /** Tabelcommando's: pipe-gescheiden met een kopregel. */
@@ -101,7 +105,7 @@ export const TABLE_COMMANDS = [
   },
   {
     id: 'netwversion',
-    label: 'Firmwareversies',
+    label: 'Softwareversies',
     cmd: 'netwversion',
     endTrigger: 'end list',
     timeoutSec: 5,
@@ -143,7 +147,7 @@ export const DANGEROUS = new Set(
     'boardset',
     'bootmode',
 
-    // Waargenomen op een Focus (firmware 16010.4.7.0). Deze grijpen in op de
+    // Waargenomen op een Focus (versie 16010.4.7.0). Deze grijpen in op de
     // printplaat, het radiodeel of de ventilatorregeling.
     'bmbreplacetobmb',     // overschrijft de gegevens op de print vanaf de SD-kaart
     'bmbreplacetosd',      // schrijft de printgegevens naar de SD-kaart
@@ -156,6 +160,8 @@ export const DANGEROUS = new Set(
     'fancalibset',         // schrijft de k-waarde van een klep
     'fansettarget',        // overschrijft de ventilatorregeling met een vaste PWM
     'fanspeedemul',        // laat de regeling rekenen met een verzonnen toerental
+    'fansetspeedemul',     // idem, naam in nieuwere versies
+    'fansetoutput',        // zet de ventilator op een vaste PWM, buiten de regeling om
     'fansetcorrection',    // past de ventilatorcurve aan
     'fanpwmfrequencyset',  // wijzigt de PWM-frequentie naar de ventilator
     'nodesetoverrule',     // houdt een component in een vaste stand
