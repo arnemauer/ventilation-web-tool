@@ -78,9 +78,10 @@ Serienummers zijn geanonimiseerd.
 
 Elk profiel gedraagt zich als zijn type box: een Silent of Focus kent geen
 temperaturen of luchtdebieten, een Energy wel. De profielen Focus
-(16010.10.4.0) en Silent (14033.5.4.0) geven letterlijk de antwoorden van een
-echte box, inclusief hun eigen commandolijst. Het Silent Connect-profiel is van
-de Focus afgeleid: zelfde commandoset, zonder kleppen.
+(16010.10.4.0 en 16010.4.7.0) en Silent (14033.5.4.0) geven letterlijk de
+antwoorden van een echte box, inclusief hun eigen commandolijst. Het Silent
+Connect-profiel is van de Focus 10.4.0 afgeleid: zelfde commandoset, zonder
+kleppen.
 
 Emulatie werkt ook in browsers zonder Web Serial.
 
@@ -194,7 +195,7 @@ js/app.js           UI-logica
 
   gegenereerde gegevenstabellen:
 js/fixtures.js      emulatieprofielen naar werkelijke installaties
-js/fixtures-logs.js emulatieprofielen uit het logboek van een echte box
+js/fixtures-logs.js emulatieprofielen uit logboeken van echte boxen
 js/ducoNames.js     productcodes en uitgebrachte softwareversies
 js/paramMeta.js     labels, hulpteksten en keuzelijsten per parameter
 js/nodeParaLists.js genummerde parameters per printtype

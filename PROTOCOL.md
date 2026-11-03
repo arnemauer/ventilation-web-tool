@@ -252,6 +252,14 @@ kolomindex → veldnaam te mappen; kolomvolgorde ligt dus niet vast.
 
 - `netw`: `rf` | `wi` (wired) | `virt` (virtueel)
 - `stat`: `auto`/`aut0` = automatisch, `aut1` = boost 10 min, enz.
+- `temp`: temperatuur van de component in tienden van een graad (`243` = 24,3 °C);
+  `0` of `-` als die er geen meldt. De app valt hierop terug als
+  `NodeParaGet <node> 73` niets oplevert.
+
+Een Focus met regelkleppen (16010.4.7.0) toont per klep ook een virtuele node
+(`140`, `141`, …, netw `virt`, type `UC`) met de klep als `prnt` en dezelfde
+temperatuur. Zulke nodes geven op `NodeParaGet` alleen `Failed`; de app vraagt
+er geen meetwaarden van.
 
 `netwversion` / `netwserial` — kopregel herkend aan `node` + `version`; waarde staat
 in kolom 2.

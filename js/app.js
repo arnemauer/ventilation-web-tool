@@ -1398,21 +1398,35 @@ async function loadDashboard() {
 const SENSOR_PARA = { co2: 74, rh: 75, temp: 73 };
 
 /**
+ * Temperatuur uit de kolom `temp` van de netwerktabel, in graden. Die staat er
+ * in tienden; 0 of '-' betekent dat de component geen temperatuur meldt.
+ */
+function tableTemp(node) {
+  const t = Number(node.temp);
+  return Number.isFinite(t) && t !== 0 ? t / 10 : undefined;
+}
+
+/**
  * Welke metingen een component heeft, af te lezen aan zijn typecode: een CO2-
  * klep of -sensor meet CO2, een vochtklep vocht, en bedieningen, sensoren,
- * kleppen en roosters meten ook de temperatuur. De box zelf staat erbuiten.
+ * kleppen en roosters meten ook de temperatuur. De box zelf staat erbuiten,
+ * net als virtuele nodes: dat zijn de sensoren in een klep, en die meldt de
+ * klep zelf al.
  */
 function sensorKinds(node) {
-  if (isBox(node)) return [];
+  if (isBox(node) || /^virt$/i.test(String(node.netw || '').trim())) return [];
   const type = String(node.type || '').toUpperCase();
   const kinds = [];
   if (type.includes('CO2')) kinds.push('co2');
   if (type.includes('RH')) kinds.push('rh');
-  if (/UC|CO2|RH|CLIMA|TRONIC/.test(type)) kinds.push('temp');
+  if (/UC|CO2|RH|CLIMA|TRONIC/.test(type) || tableTemp(node) !== undefined) kinds.push('temp');
   return kinds;
 }
 
-/** Leest de metingen van één component. Wat niet antwoordt, ontbreekt. */
+/**
+ * Leest de metingen van één component. Wat niet antwoordt, ontbreekt; alleen
+ * de temperatuur valt terug op de netwerktabel.
+ */
 async function readNodeSensors(node) {
   const out = {};
   for (const kind of sensorKinds(node)) {
@@ -1425,7 +1439,27 @@ async function readNodeSensors(node) {
       appendLog({ dir: 'err', text: `${cmd}: ${err.message}` });
     }
   }
+  if (out.temp === undefined && tableTemp(node) !== undefined) out.temp = tableTemp(node);
   return out;
+}
+
+/**
+ * Leest de netwerktabel opnieuw voor de actuele temperaturen; de tabel in
+ * `state.nodes` is van het moment van verbinden.
+ */
+async function refreshTableTemps() {
+  const t = TABLE_COMMANDS.find((x) => x.id === 'network');
+  if (!t || !duco.supports(t.cmd)) return;
+  try {
+    const lines = await duco.sendCommandWithResponse(t.cmd, { timeoutSec: t.timeoutSec, endTrigger: t.endTrigger });
+    const { rows } = parsePipeTable(lines, { headerHints: t.headerHints });
+    for (const r of rows) {
+      const node = state.nodes.find((n) => n.node === Number(r.node));
+      if (node && r.temp !== undefined) node.temp = r.temp;
+    }
+  } catch (err) {
+    appendLog({ dir: 'err', text: `${t.cmd}: ${err.message}` });
+  }
 }
 
 const SENSOR_LABEL = { co2: 'CO2', rh: 'Vochtigheid', temp: 'Temperatuur' };
@@ -1483,6 +1517,9 @@ async function loadSensorCard(body, token) {
   card.append(h, table, note);
   if (body.querySelector('.empty')) body.innerHTML = '';
   body.prepend(card);
+
+  await refreshTableTemps();
+  if (token !== state.dashToken) return;
 
   let any = false;
   for (const node of nodes) {
