@@ -381,10 +381,17 @@ td.mono { font-family: var(--mono); }
 /* ------------------------------------------------------------ componentpagina */
 
 .detail-section { margin-bottom: 22px; }
-.detail-section > h4 {
+.detail-section > h4,
+.info-column > h4 {
   font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--ink-3); margin: 0 0 8px; font-weight: 600;
 }
+
+/* Gegevens en Metingen naast elkaar; op een smal scherm onder elkaar. */
+.info-columns { display: flex; flex-wrap: wrap; gap: 0 22px; align-items: flex-start; }
+.info-column { flex: 0 1 auto; min-width: 0; }
+.info-details { flex: 0 1 440px; }
+.info-column .sensor-tiles { margin-bottom: 0; }
 
 .banner-inline {
   margin: 0 0 12px;

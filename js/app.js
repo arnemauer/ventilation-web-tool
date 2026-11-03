@@ -589,9 +589,16 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
       }
     }
     if (token !== state.nodeToken) return;   // intussen een andere component gekozen
+    // Gegevens en Metingen staan naast elkaar; de gegevens zijn een smalle
+    // lijst, en zo blijft er naast die lijst geen lege ruimte over.
     info.innerHTML = '';
-    info.appendChild(buildInfoHeading('Gegevens'));
-    info.appendChild(buildNodeInfoCard(node, infoLines));
+    const columns = document.createElement('div');
+    columns.className = 'info-columns';
+    const col = document.createElement('div');
+    col.className = 'info-column info-details';
+    col.append(buildInfoHeading('Gegevens'), buildNodeInfoCard(node, infoLines));
+    columns.appendChild(col);
+    info.appendChild(columns);
   } finally {
     setBusy(false);
   }
@@ -601,7 +608,10 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
     const box = document.createElement('div');
     box.className = 'sensor-tiles';
     box.innerHTML = '<p class="empty">Laden…</p>';
-    info.append(buildInfoHeading('Metingen'), box);
+    const col = document.createElement('div');
+    col.className = 'info-column';
+    col.append(buildInfoHeading('Metingen'), box);
+    (info.querySelector('.info-columns') || info).appendChild(col);
     const values = await readNodeSensors(node);
     if (token !== state.nodeToken) return;
     renderSensorTiles(box, values);
