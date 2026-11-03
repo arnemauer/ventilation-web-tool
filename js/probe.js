@@ -34,10 +34,14 @@ const READ_HELP = /\b(get|info|print|table|list|status|version|hwm)\b/i;
 const READ_NAME = /(info|get|status|list|print|version|hwm)$/i;
 
 /**
- * Commando's waarvan de hulptekst niets zegt, maar waarvan bekend is dat ze
- * alleen iets tonen.
+ * Commando's waarvan bekend is dat ze alleen iets tonen. Nodig voor boxen die
+ * in `help /all` alleen de namen geven, zonder uitleg — zoals een oudere
+ * Silent (14033.5.4.0). Daar zou anders bijvoorbeeld `FanSpeed` wegvallen.
  */
-const KNOWN_READ = new Set(['network', 'oshwm']);
+const KNOWN_READ = new Set([
+  'network', 'netwserial', 'netwversion', 'oshwm', 'fanspeed', 'fangetspeed',
+  'fancalib', 'coregeterror', 'dataraw',
+]);
 
 /** Splitst een commandonaam in woorden: `BMBReplaceToBmb` → BMB, Replace, To, Bmb. */
 function nameTokens(name) {
@@ -101,11 +105,13 @@ export function classify({ name, args, desc }) {
  * - `probe`       één onbekend argument: 0, 1, 2, … tot de box weigert;
  * - `skip`        meer argumenten die we niet kunnen invullen.
  */
-export function callStyle({ args, desc }) {
+export function callStyle({ name = '', args, desc }) {
   if (!args.length) return 'none';
-  const mentionsNode = /\bnode\b/i.test(desc);
+  // Zonder uitleg in de hulp zegt de naam het: NodeInfo, NodeConfigGet, …
+  const mentionsNode = /\bnode\b/i.test(desc) || /^node/i.test(name);
+  const mentionsPara = /\bpara/i.test(desc) || /^node.*para/i.test(name);
   if (args.length === 1) return mentionsNode ? 'perNode' : 'probe';
-  if (args.length === 2 && mentionsNode && /\bpara/i.test(desc)) return 'perNodePara';
+  if (args.length === 2 && mentionsNode && mentionsPara) return 'perNodePara';
   return 'skip';
 }
 

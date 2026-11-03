@@ -28,6 +28,38 @@ Klik op **Verbinden** en kies de CP210x-poort in de dialoog van de browser.
 Vink *alle poorten* aan als de kabel niet in de lijst staat (bijvoorbeeld bij een
 andere USB-UART-chip of een Bluetooth-koppeling).
 
+### Lukt verbinden niet?
+
+Dezelfde stappen staan in de applicatie op het dashboard, zolang er geen
+verbinding is.
+
+1. Gebruik **Chrome of Edge op een computer**. Firefox, Safari en telefoons
+   ondersteunen de seriële verbinding niet.
+2. Steek de USB-kabel in de computer en in de servicepoort van de DucoBox. Kies
+   bij *Verbinden* de poort met **CP210x** of **CP2102** in de naam. Op Windows
+   staat er een COM-nummer achter, op een Mac heet hij `cu.SLAB_USBtoUART` of
+   `cu.usbserial-…`.
+3. **Staat er geen poort in de lijst?** Dan ontbreekt meestal de driver voor de
+   CP210x-chip in de kabel. Download die bij Silicon Labs, de maker van de chip:
+   [CP210x USB to UART Bridge VCP Drivers](https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers)
+   (tabblad *Downloads*).
+   - **Windows:** kies *CP210x Universal Windows Driver*. Pak het zip-bestand
+     uit, klik met de rechtermuisknop op `silabser.inf` en kies *Installeren*
+     (op Windows 11 eerst *Meer opties weergeven*). Steek de kabel daarna
+     opnieuw in. In Apparaatbeheer staat hij dan onder *Poorten (COM & LPT)*
+     als *Silicon Labs CP210x USB to UART Bridge*.
+   - **Mac:** kies *CP210x VCP Mac OSX Driver*, installeer het en sta de
+     systeemextensie toe via *Systeeminstellingen → Privacy en beveiliging*.
+   - **Linux:** de driver zit al in de kernel; installeren is niet nodig.
+4. **Is de poort bezet?** Sluit andere programma's die de kabel gebruiken, zoals
+   een andere servicetool, een terminalprogramma of een tweede tabblad van deze
+   tool.
+5. **Komt er na het verbinden niets terug?** Dan is het waarschijnlijk de
+   verkeerde poort. Klik op *Verbreken* en kies een andere. Heeft je kabel een
+   andere chip (bijvoorbeeld FTDI of CH340), zet dan *alle poorten* aan.
+6. Lukt het nog steeds niet? Sla het logboek op en mail het naar
+   ventilationwebtool@gmail.com.
+
 ### Zonder hardware: emulatie
 
 Zet het vinkje **emulatie** aan en er verschijnt een keuzelijst met profielen.
@@ -45,10 +77,10 @@ de parameternamen en de waarden overeenkomen met wat je in het veld tegenkomt.
 Serienummers zijn geanonimiseerd.
 
 Elk profiel gedraagt zich als zijn type box: een Silent of Focus kent geen
-temperaturen of luchtdebieten, een Energy wel. Het Focus-profiel geeft
-letterlijk de antwoorden van een echte Focus (16010.10.4.0), inclusief zijn
-eigen commandolijst. Het Silent Connect-profiel is daarvan afgeleid: zelfde
-commandoset, zonder kleppen.
+temperaturen of luchtdebieten, een Energy wel. De profielen Focus
+(16010.10.4.0) en Silent (14033.5.4.0) geven letterlijk de antwoorden van een
+echte box, inclusief hun eigen commandolijst. Het Silent Connect-profiel is van
+de Focus afgeleid: zelfde commandoset, zonder kleppen.
 
 Emulatie werkt ook in browsers zonder Web Serial.
 
@@ -97,7 +129,10 @@ de tabbladen, omdat die per motor werkt en niet per node.
 ### Logboek
 
 De knop **Logboek opslaan** in de balk schrijft alles weg als tekstbestand, met
-een naam als `2026-09-16 15.52 log VWT.txt`. Mocht een onderdeel niet werken dan kun je dit log delen via 'Issues'.
+een naam als `2026-09-16 15.52 log VWT.txt`. Bovenaan staat welke versie van de
+tool is gebruikt: de commit die online staat, of bij een lokale server de commit
+uit git, met de vermelding als er niet-gecommitte wijzigingen zijn. Die versie
+komt uit `version.json`, dat GitHub Pages bij het publiceren invult. Mocht een onderdeel niet werken dan kun je dit log delen via 'Issues'.
 
 ## Hoe het werkt
 

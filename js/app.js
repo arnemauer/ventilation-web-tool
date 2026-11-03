@@ -50,6 +50,7 @@ const state = {
   nodes: [],
   selectedNode: null,
   nodeToken: 0,             // verhoogd bij elke gekozen component
+  dashToken: 0,             // verhoogd bij elke keer dat het dashboard laadt
   groupToken: 0,            // verhoogd bij elk gekozen tabblad
   currentGroup: null,
   groupIndex: 1,             // voor groepen met een eigen index, zoals Motor
@@ -59,6 +60,7 @@ const state = {
   history: [],
   historyIdx: -1,
   probe: { running: false, stop: false },
+  version: null,             // { commit, built, source, dirty } uit version.json
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -183,6 +185,9 @@ function setBusy(on, what = '') {
   });
 
   $('#probeHint').hidden = state.connected;
+  // De verbindhulp blijft staan zolang er geen verbinding is, of zolang de
+  // verbinding er wel is maar het toestel niet antwoordt.
+  $('#connectHelp').hidden = state.connected && $('#noReplyBanner').hidden;
 
   // Halverwege wisselen tussen emulatie en hardware kan niet: eerst verbreken.
   $('#emulate').disabled = state.connected;
@@ -273,11 +278,35 @@ async function connect() {
     $('#emuBadge').hidden = true;
     $('#emuBanner').hidden = true;
     setBusy(false);
-    if (err.name === 'NotFoundError') return; // gebruiker koos geen poort
+    if (err.name === 'NotFoundError') {
+      // Geen poort gekozen. Vaak omdat de kabel er niet tussen stond: dan
+      // ontbreekt de driver. Wijs de weg in plaats van niets te doen.
+      appendLog({ dir: 'sys', text: 'Geen poort gekozen' });
+      toast("Geen poort gekozen. Stond de kabel er niet tussen? Zie 'Lukt verbinden niet?'.");
+      openConnectHelp();
+      return;
+    }
+    // De browser meldt een bezette of onbereikbare poort in het Engels en
+    // zonder uitleg; die gevallen krijgen een Nederlandse melding.
+    const message =
+      err.name === 'NetworkError' || err.name === 'InvalidStateError'
+        ? 'De poort is bezet of niet te openen. Sluit andere programma\'s die de kabel gebruiken en probeer opnieuw.'
+        : err.message;
     setStatus('Verbinden mislukt', 'err');
-    appendLog({ dir: 'err', text: err.message });
-    toast(err.message, 'err');
+    appendLog({ dir: 'err', text: `${message} (${err.name}: ${err.message})` });
+    toast(message, 'err');
+    openConnectHelp();
   }
+}
+
+/** Opent de verbindhulp op het dashboard en scrollt ernaartoe. */
+function openConnectHelp() {
+  const help = $('#connectHelp');
+  if (!help) return;
+  switchView('dashboard');
+  help.hidden = false;
+  help.open = true;
+  help.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function disconnect() {
@@ -565,6 +594,17 @@ async function showNode(nodeNumber, { keepGroup = false } = {}) {
     info.appendChild(buildNodeInfoCard(node, infoLines));
   } finally {
     setBusy(false);
+  }
+
+  // Wat de component meet: CO2, vocht en temperatuur.
+  if (sensorKinds(node).length && duco.supports('NodeParaGet')) {
+    const box = document.createElement('div');
+    box.className = 'sensor-tiles';
+    box.innerHTML = '<p class="empty">Laden…</p>';
+    info.append(buildInfoHeading('Metingen'), box);
+    const values = await readNodeSensors(node);
+    if (token !== state.nodeToken) return;
+    renderSensorTiles(box, values);
   }
 
   buildNodeActions(node);
@@ -1305,6 +1345,7 @@ async function runNodeAction(act, node) {
 
 async function loadDashboard() {
   if (!state.connected) return;
+  const token = ++state.dashToken;
   const body = $('#dashboardBody');
   body.innerHTML = '<p class="empty">Laden…</p>';
 
@@ -1339,12 +1380,131 @@ async function loadDashboard() {
   }
   setBusy(false);
 
+  if (token !== state.dashToken) return;
   body.innerHTML = '';
-  if (!cards.length) {
-    body.innerHTML = '<p class="empty">Geen gegevens ontvangen.</p>';
+  if (!cards.length) body.innerHTML = '<p class="empty">Geen gegevens ontvangen.</p>';
+  cards.forEach((c) => body.appendChild(c));
+
+  await loadSensorCard(body, token);
+}
+
+/* ---------------------------------------------------------------- metingen */
+
+/**
+ * De genummerde parameters waarin een component zijn metingen meldt:
+ * temperatuur in tienden van een graad, CO2 in ppm, vocht in honderdsten van
+ * een procent.
+ */
+const SENSOR_PARA = { co2: 74, rh: 75, temp: 73 };
+
+/**
+ * Welke metingen een component heeft, af te lezen aan zijn typecode: een CO2-
+ * klep of -sensor meet CO2, een vochtklep vocht, en bedieningen, sensoren,
+ * kleppen en roosters meten ook de temperatuur. De box zelf staat erbuiten.
+ */
+function sensorKinds(node) {
+  if (isBox(node)) return [];
+  const type = String(node.type || '').toUpperCase();
+  const kinds = [];
+  if (type.includes('CO2')) kinds.push('co2');
+  if (type.includes('RH')) kinds.push('rh');
+  if (/UC|CO2|RH|CLIMA|TRONIC/.test(type)) kinds.push('temp');
+  return kinds;
+}
+
+/** Leest de metingen van één component. Wat niet antwoordt, ontbreekt. */
+async function readNodeSensors(node) {
+  const out = {};
+  for (const kind of sensorKinds(node)) {
+    const cmd = `NodeParaGet ${node.node} ${SENSOR_PARA[kind]}`;
+    try {
+      const v = parseArrowValue(await duco.sendCommandWithResponse(cmd, { timeoutSec: 3 }));
+      if (v === null) continue;
+      out[kind] = kind === 'temp' ? v / 10 : kind === 'rh' ? v / 100 : v;
+    } catch (err) {
+      appendLog({ dir: 'err', text: `${cmd}: ${err.message}` });
+    }
+  }
+  return out;
+}
+
+const SENSOR_LABEL = { co2: 'CO2', rh: 'Vochtigheid', temp: 'Temperatuur' };
+
+function formatSensor(kind, v) {
+  if (v === undefined) return '–';
+  const nl = (x, d) => x.toLocaleString('nl-NL', { minimumFractionDigits: d, maximumFractionDigits: d });
+  if (kind === 'co2') return `${v} ppm`;
+  if (kind === 'rh') return `${nl(v, 0)} %`;
+  return `${nl(v, 1)} °C`;
+}
+
+/** Tegels met de metingen op de componentpagina. */
+function renderSensorTiles(box, values) {
+  box.innerHTML = '';
+  const kinds = Object.keys(SENSOR_PARA).filter((k) => values[k] !== undefined);
+  if (!kinds.length) {
+    box.innerHTML = '<p class="empty">Deze component gaf geen meetwaarden terug.</p>';
     return;
   }
-  cards.forEach((c) => body.appendChild(c));
+  for (const kind of kinds) {
+    const tile = document.createElement('div');
+    tile.className = 'sensor-tile';
+    const label = document.createElement('span');
+    label.className = 'sensor-label';
+    label.textContent = SENSOR_LABEL[kind];
+    const value = document.createElement('span');
+    value.className = 'sensor-value';
+    value.textContent = formatSensor(kind, values[kind]);
+    tile.append(label, value);
+    box.appendChild(tile);
+  }
+}
+
+/**
+ * Dashboardkaart met de metingen van alle componenten. Elke component kost een
+ * paar vragen; de kaart vult zich daarom regel voor regel, bovenaan het
+ * dashboard.
+ */
+async function loadSensorCard(body, token) {
+  const nodes = state.nodes.filter((n) => sensorKinds(n).length);
+  if (!nodes.length || !duco.supports('NodeParaGet')) return;
+
+  const card = document.createElement('div');
+  card.className = 'card wide';
+  const h = document.createElement('h3');
+  h.textContent = 'Metingen per component';
+  const table = document.createElement('table');
+  table.className = 'mini sensors';
+  table.innerHTML =
+    '<tr><th>Node</th><th>Component</th><th>CO2</th><th>Vochtigheid</th><th>Temperatuur</th></tr>';
+  const note = document.createElement('p');
+  note.className = 'empty';
+  note.textContent = 'Laden…';
+  card.append(h, table, note);
+  if (body.querySelector('.empty')) body.innerHTML = '';
+  body.prepend(card);
+
+  let any = false;
+  for (const node of nodes) {
+    const values = await readNodeSensors(node);
+    if (token !== state.dashToken) return;
+    if (!Object.keys(values).length) continue;
+    any = true;
+    const tr = document.createElement('tr');
+    const cells = [
+      node.node,
+      productName(node),
+      ...['co2', 'rh', 'temp'].map((k) => formatSensor(k, values[k])),
+    ];
+    for (const c of cells) {
+      const td = document.createElement('td');
+      td.textContent = c;
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+  if (any) note.remove();
+  else note.textContent = 'Geen enkele component gaf meetwaarden terug.';
 }
 
 /**
@@ -1781,6 +1941,7 @@ async function writeDirty(onReload) {
 
   let written = 0;
   let failed = 0;
+  let garbled = null;        // de melding als de box een verminkt commando uitvoerde
   const touchedNodes = new Set();
 
   setBusy(true, 'Wegschrijven…');
@@ -1808,6 +1969,7 @@ async function writeDirty(onReload) {
       }
     } catch (err) {
       failed++;
+      if (/De box ontving/.test(err.message)) garbled = err.message;
       appendLog({ dir: 'err', text: `${cmd}: ${err.message}` });
     }
   }
@@ -1826,7 +1988,10 @@ async function writeDirty(onReload) {
   }
   setBusy(false);
 
-  if (failed) toast(`${written} geschreven, ${failed} mislukt`, 'err');
+  // Voerde de box een verminkt commando uit, dan staat er iets anders in dan
+  // gevraagd. Dat moet de gebruiker zien, niet alleen een telling.
+  if (garbled) toast(garbled, 'err');
+  else if (failed) toast(`${written} geschreven, ${failed} mislukt`, 'err');
   else toast(`${written} parameter${written === 1 ? '' : 's'} weggeschreven`, 'ok');
 
   state.dirty.clear();
@@ -2001,6 +2166,7 @@ function saveLog() {
   const now = new Date();
   const lines = [
     `Ventilation Web Tool — logboek`,
+    `Versie: ${versionText()}`,
     `Opgeslagen: ${stamp(now)}`,
     `Regels: ${state.logEntries.length}`,
     `Legenda: >> verzonden · << ontvangen · ## bediening · -- melding · !! fout`,
@@ -2051,7 +2217,7 @@ function saveLog() {
 class ProbeStopped extends Error {}
 
 /** Langzame commando's: lange lijsten of logboeken. */
-const PROBE_SLOW = /^(logprint|testprint|dataraw|nodeparalist|help)\b/i;
+const PROBE_SLOW = /^(logprint|testprint|dataraw|nodeparalist)\b/i;
 
 /** Hoe vaak een onbekend argument hooguit wordt opgehoogd. */
 const PROBE_MAX_ARG = 16;
@@ -2116,7 +2282,10 @@ async function runProbe() {
     }
     done++;
     bar.value = done;
-    const ok = lines.length > 0 && !responseError(lines);
+    // Een kaal "Done" telt niet als antwoord: zo meldt de box een nummer
+    // waar niets onder zit, en dan moet het ophogen ook stoppen.
+    const ok =
+      lines.length > 0 && !responseError(lines) && !lines.every((l) => /^done$/i.test(l.trim()));
     if (ok) answered++;
     else refused++;
     return ok ? lines : [];
@@ -2189,7 +2358,11 @@ async function runProbe() {
       for (const num of nodes) {
         const node = state.nodes.find((n) => n.node === num);
         const board = node ? boardForNode(node) : null;
-        const ids = (board ? board.params.map((p) => p.id) : listed).slice(0, PROBE_MAX_PARAS);
+        // Plus de meetwaarden, zodat het logboek laat zien wat de component meet.
+        const sensors = node ? sensorKinds(node).map((k) => SENSOR_PARA[k]) : [];
+        const ids = [...new Set([...(board ? board.params.map((p) => p.id) : listed), ...sensors])]
+          .sort((a, b) => a - b)
+          .slice(0, PROBE_MAX_PARAS);
         if (!ids.length) {
           appendLog({ dir: 'sys', text: `Losse parameters van node ${num} overgeslagen: geen nummers bekend` });
           continue;
@@ -2260,9 +2433,115 @@ function renderProbeSummary({ stopped, done, answered, refused, skipped }) {
   }
 }
 
+/* ------------------------------------------------------------- menubreedte */
+
+const NAV_WIDTH = { min: 180, max: 520, standard: 260, key: 'vwt.navWidth' };
+
+/**
+ * Maakt het linkermenu breder of smaller: slepen aan de rand, pijltjestoetsen
+ * als de greep focus heeft, dubbelklik voor de standaardbreedte. De breedte
+ * wordt in deze browser onthouden.
+ */
+function setupNavResizer() {
+  const handle = $('#navResizer');
+  const layout = $('.layout');
+  if (!handle || !layout) return;
+
+  let width = NAV_WIDTH.standard;
+  const apply = (w) => {
+    width = Math.round(Math.min(NAV_WIDTH.max, Math.max(NAV_WIDTH.min, w)));
+    layout.style.setProperty('--nav-width', `${width}px`);
+    handle.setAttribute('aria-valuenow', String(width));
+  };
+  const save = () => {
+    try {
+      localStorage.setItem(NAV_WIDTH.key, String(width));
+    } catch {
+      /* geen opslag beschikbaar: dan alleen voor deze sessie */
+    }
+  };
+
+  let stored = null;
+  try {
+    stored = Number(localStorage.getItem(NAV_WIDTH.key));
+  } catch {
+    /* idem */
+  }
+  apply(stored || NAV_WIDTH.standard);
+  handle.setAttribute('aria-valuemin', String(NAV_WIDTH.min));
+  handle.setAttribute('aria-valuemax', String(NAV_WIDTH.max));
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const left = layout.getBoundingClientRect().left;
+    handle.setPointerCapture(e.pointerId);
+    document.body.classList.add('resizing-nav');
+
+    const move = (ev) => apply(ev.clientX - left);
+    const done = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', done);
+      handle.removeEventListener('pointercancel', done);
+      document.body.classList.remove('resizing-nav');
+      save();
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', done);
+    handle.addEventListener('pointercancel', done);
+  });
+
+  handle.addEventListener('dblclick', () => {
+    apply(NAV_WIDTH.standard);
+    save();
+  });
+
+  handle.addEventListener('keydown', (e) => {
+    const step = e.shiftKey ? 40 : 10;
+    if (e.key === 'ArrowLeft') apply(width - step);
+    else if (e.key === 'ArrowRight') apply(width + step);
+    else return;
+    e.preventDefault();
+    save();
+  });
+}
+
+/* ------------------------------------------------------------------ versie */
+
+/**
+ * Welke versie draait er. Op GitHub Pages vult Jekyll `version.json` bij het
+ * publiceren met de commit; lokaal levert tools/devserver.py het met de commit
+ * uit git. Elders blijft het bestand onbewerkt en is de versie onbekend.
+ */
+async function loadVersion() {
+  try {
+    const res = await fetch('version.json', { cache: 'no-store' });
+    const v = await res.json();
+    if (!v.commit || v.commit.includes('{{')) throw new Error('niet ingevuld');
+    state.version = { commit: v.commit, built: v.built, source: v.source, dirty: !!v.dirty };
+  } catch {
+    state.version = null;
+  }
+}
+
+/** `f128bc6 — gepubliceerd 2026-11-03 14:02`, of met de vermelding lokaal. */
+function versionText() {
+  const v = state.version;
+  if (!v) return 'onbekend';
+  let text = v.commit.slice(0, 7);
+  if (v.source === 'local') text += v.dirty ? ' + niet-gecommitte wijzigingen (lokaal)' : ' (lokaal)';
+  else if (v.built && !Number.isNaN(Date.parse(v.built))) {
+    text += ` — gepubliceerd ${stamp(new Date(v.built)).slice(0, 16)}`;
+  }
+  return text;
+}
+
 /* -------------------------------------------------------------------- init */
 
 function init() {
+  setupNavResizer();
+  loadVersion();
+
   const profileSelect = $('#emuProfile');
   profileSelect.innerHTML = '';
   for (const p of listProfiles()) {
@@ -2367,6 +2646,12 @@ function init() {
   // Ook in de balk, zodat je er niet eerst naar de console voor hoeft.
   $('#btnSaveLogTop').onclick = saveLog;
   $('#btnSaveLogHelp').onclick = saveLog;
+  document.querySelectorAll('[data-open-help]').forEach((a) =>
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      openConnectHelp();
+    })
+  );
   $('#btnProbe').onclick = runProbe;
   $('#btnProbeStop').onclick = () => {
     state.probe.stop = true;

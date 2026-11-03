@@ -51,6 +51,9 @@ function lineRange(text) {
   if (m) return { min: Number(m[1]), max: Number(m[3]) };
   m = text.match(/\[(-?\d+)[-:](-?\d+)\]\s*$/);
   if (m) return { min: Number(m[1]), max: Number(m[2]) };
+  // Oudere Silent: "120 [.1°C] (100-350)".
+  m = text.match(/\((-?\d+)-(-?\d+)\)\s*$/);
+  if (m) return { min: Number(m[1]), max: Number(m[2]) };
   return null;
 }
 
@@ -376,6 +379,8 @@ class DucoEmulator {
   /** Kent deze box het commando? Een set-commando volgt zijn get-commando. */
   available(cmd) {
     if (this.canned) return cmd === 'help' || this.commands.has(cmd);
+    // Ook beheercommando's ontbreken soms: een oudere Silent heeft geen klok.
+    if (this.family?.lacks?.includes(cmd)) return false;
     if (CORE.has(cmd) || !this.commands) return true;
     if (cmd === 'network_info') return false;     // zit op de communicatieprint, niet op de box
     if (cmd === 'resettodefaults') return this.family?.system === 'D';
@@ -705,6 +710,14 @@ class DucoEmulator {
           return pv ? [`para 0 --> ${pv}`, 'done'] : ['failed'];
         }
 
+        // Metingen: 73 temperatuur (tienden °C), 74 CO2 (ppm), 75 vocht
+        // (honderdsten %). Alleen voor een component die zoiets meet.
+        if (para >= 73 && para <= 75) {
+          const n = st.nodes.find((x) => x.node === nodeNr);
+          const v = n && this.nodeSensor(n, para);
+          return v === null || v === undefined ? [`Get PARA ${para} of NODE ${nodeNr}`, 'Failed'] : [`para ${para} --> ${v}`, 'done'];
+        }
+
         // Eerder weggeschreven losse parameters gaan voor.
         const stored = this.rawParams[nodeNr] && this.rawParams[nodeNr][para];
         if (stored !== undefined) return [`para ${para} --> ${stored}`, 'done'];
@@ -1001,8 +1014,33 @@ class DucoEmulator {
         c.logprint = ['Done'];
         return ['Done'];
 
-      case 'nodeparaget':
-        return c[key] || [`Get PARA ${args[1]} of NODE ${args[0]}`, 'Failed'];
+      case 'nodeinfo': {
+        if (c[key]) return c[key];
+        // Niet in het logboek: opbouwen uit de versie- en serienummertabel.
+        // Een node die daar geen versie heeft, antwoordt zoals een slapende node.
+        const node = Number(args[0]);
+        const cell = (table) =>
+          (c[table] || [])
+            .map((l) => l.split('|').map((x) => x.trim()))
+            .find((cells) => cells[0] === String(node))?.[2];
+        const version = cell('netwversion');
+        const serial = cell('netwserial');
+        if (!version || version === '---' || version === 'Failed') {
+          return [`Node    ${node}`, 'ApplSW  Failed', 'Serial  Failed', 'Counter Failed', 'Done'];
+        }
+        return [`Node    ${node}`, `ApplSW  ${version}`, `Serial  ${serial || 'Failed'}`, 'Done'];
+      }
+
+      case 'nodeparaget': {
+        if (c[key]) return c[key];
+        // Het logboek vroeg de metingen niet op; de emulator leidt ze af uit
+        // de netwerktabel (type en temperatuurkolom) — verzonnen, maar plausibel.
+        const [node, para] = args.map(Number);
+        const v = para >= 73 && para <= 75 ? this.cannedSensor(node, para) : null;
+        return v === null
+          ? [`Get PARA ${args[1]} of NODE ${args[0]}`, 'Failed']
+          : [`Get PARA ${para} of NODE ${node}`, `--> ${v}`, 'Done'];
+      }
 
       case 'nodeparaset': {
         const [node, para, value] = args.map(Number);
@@ -1019,6 +1057,34 @@ class DucoEmulator {
 
     if (cmd.endsWith('set')) return this.cannedSet(cmd, args);
     return c[key] || (!args.length && c[cmd]) || ['Done'];
+  }
+
+  /**
+   * Een meetwaarde zoals de component hem meldt, of `null` als hij dat niet
+   * meet. Waar het profiel geen waarde heeft, verzint de emulator er een
+   * die bij het type past.
+   */
+  nodeSensor(n, para) {
+    const type = String(n.type || '').toUpperCase();
+    const temp = typeof n.temp === 'number' ? n.temp : typeof n.tmp === 'number' ? n.tmp : null;
+    if (para === 73) return /UC|CO2|RH|CLIMA|TRONIC/.test(type) ? Math.round((temp ?? 21) * 10) : null;
+    if (para === 74) return type.includes('CO2') ? (typeof n.co2 === 'number' ? n.co2 : 480 + ((n.node * 97) % 500)) : null;
+    if (para === 75) return type.includes('RH') ? Math.round((typeof n.rh === 'number' ? n.rh : 52) * 100) : null;
+    return null;
+  }
+
+  /** Idem voor een logboekprofiel: type en temperatuur uit de netwerktabel. */
+  cannedSensor(node, para) {
+    const row = (this.canned.network || []).find((l) => l.split('|')[0].trim() === String(node));
+    if (!row) return null;
+    const cells = row.split('|').map((x) => x.trim());
+    const type = cells[4].toUpperCase();
+    const snsr = Number(cells[15]) || 0;           // vraag van de sensor, in %
+    const temp = Number(cells[20]);                 // tienden van een graad
+    if (para === 73) return /UC|CO2|RH|CLIMA|TRONIC/.test(type) && temp > 0 ? temp : null;
+    if (para === 74) return type.includes('CO2') ? 450 + snsr * 10 : null;
+    if (para === 75) return type.includes('RH') ? 4800 + snsr * 120 : null;
+    return null;
   }
 
   /** Schrijft een parameter in het bewaarde antwoord van het bijbehorende get-commando. */

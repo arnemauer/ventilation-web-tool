@@ -1,0 +1,10 @@
+---
+# Jekyll vult dit in bij het publiceren op GitHub Pages: de commit die online
+# staat en het tijdstip van publiceren. Lokaal levert tools/devserver.py het
+# bestand met de commit uit git.
+---
+{
+  "commit": "{{ site.github.build_revision }}",
+  "built": "{{ site.time | date_to_xmlschema }}",
+  "source": "pages"
+}

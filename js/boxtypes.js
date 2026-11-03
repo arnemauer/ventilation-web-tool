@@ -7,7 +7,8 @@
  * die zo'n box niet heeft. Daarnaast is het een naslag: welk type wat kan.
  *
  * Per type staan alleen de commando's die iets uitlezen of een parametergroep
- * vormen. Beheercommando's (Network, NodeInfo, InstallerSet, …) kent elke box.
+ * vormen. Beheercommando's (Network, NodeInfo, InstallerSet, …) kent elke box,
+ * op wat er onder `lacks` staat na.
  *
  * `since` noemt de softwareversie vanaf waar een commando bestaat, `until` tot
  * en met welke; zonder die velden geldt het voor alle bekende versies.
@@ -96,11 +97,12 @@ export const BOX_FAMILIES = [
     groups: [...without(SYSTEM_C.groups, 'autohcparaget'), 'settingsparaget', 'pressureparaget'],
   },
   {
-    // Oudere Silent. De set volgt uit wat de logs van zo'n box bevatten,
-    // aangevuld met het toerental.
+    // Oudere Silent. De set volgt uit de logs van zo'n box (14033.5.4.0): geen
+    // klok en geen logboek, wel kalibratie en sensorsturing.
     id: 'silent', label: 'DucoBox Silent', system: 'C', codes: [14033],
-    info: [SPEED_OLD, 'sensorinfo', 'comminfo', 'rtcgettime'],
-    groups: ['fanparaget', 'ventctrlparaget', 'nodeconfigget'],
+    info: [SPEED_OLD, 'fancalib', 'sensorinfo', 'sensorctrlinfo', 'comminfo'],
+    groups: ['fanparaget', 'ventctrlparaget', 'sensorctrlparaget', 'nodeconfigget'],
+    lacks: ['rtcgettime', 'rtcsettime', 'logprint', 'logclear'],
   },
   {
     id: 'energy', label: 'DucoBox Energy', system: 'D', codes: [16023],

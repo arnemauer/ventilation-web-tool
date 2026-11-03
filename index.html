@@ -53,7 +53,8 @@
   <br>
   Blijft het leeg met de goede poort, controleer dan de kabel en of hij in de
   servicepoort van de box zit. Via <em>Console</em> kun je zelf een commando
-  proberen, bijvoorbeeld <code>swversion</code>.
+  proberen, bijvoorbeeld <code>swversion</code>. Meer stappen staan onder
+  <a href="#connectHelp" data-open-help>Lukt verbinden niet?</a> op het dashboard.
 </div>
 
 <div id="emuBanner" class="banner warn" hidden>
@@ -64,6 +65,7 @@
 
 <main class="layout">
 
+  <div class="sidebar">
   <nav class="sidenav" id="sidenav">
     <div class="nav-section">
       <h2>Overzicht</h2>
@@ -90,6 +92,10 @@
       <button class="nav-item" data-view="help">Help mee</button>
     </div>
   </nav>
+  <div class="nav-resizer" id="navResizer" role="separator" aria-orientation="vertical"
+       aria-label="Breedte van het menu" tabindex="0"
+       title="Sleep om het menu breder of smaller te maken · dubbelklik voor de standaardbreedte"></div>
+  </div>
 
   <section class="content" id="content">
 
@@ -99,6 +105,40 @@
         <h2>Dashboard</h2>
         <button class="btn small" data-refresh="dashboard">Vernieuwen</button>
       </div>
+
+      <details class="connect-help" id="connectHelp">
+        <summary>Lukt verbinden niet?</summary>
+        <ol>
+          <li>Gebruik <strong>Chrome of Edge op een computer</strong>. Firefox, Safari en
+            telefoons ondersteunen de seriële verbinding niet.</li>
+          <li>Steek de USB-kabel in de computer en in de servicepoort van de DucoBox.
+            Klik op <em>Verbinden</em> en kies de poort met <strong>CP210x</strong> of
+            <strong>CP2102</strong> in de naam. Op Windows staat er een COM-nummer achter,
+            op een Mac heet hij <code>cu.SLAB_USBtoUART</code> of <code>cu.usbserial-…</code>.</li>
+          <li><strong>Staat er geen poort in de lijst?</strong> Dan ontbreekt meestal de driver
+            voor de CP210x-chip in de kabel. Download die bij Silicon Labs, de maker van de chip:
+            <a href="https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers" target="_blank" rel="noopener">CP210x USB to UART Bridge VCP Drivers</a>
+            (tabblad <em>Downloads</em>).
+            <ul>
+              <li><strong>Windows:</strong> kies <em>CP210x Universal Windows Driver</em>. Pak het
+                zip-bestand uit, klik met de rechtermuisknop op <code>silabser.inf</code> en kies
+                <em>Installeren</em> (op Windows 11 eerst <em>Meer opties weergeven</em>). Steek de
+                kabel daarna opnieuw in. In Apparaatbeheer staat hij dan onder
+                <em>Poorten (COM &amp; LPT)</em> als <em>Silicon Labs CP210x USB to UART Bridge</em>.</li>
+              <li><strong>Mac:</strong> kies <em>CP210x VCP Mac OSX Driver</em>, installeer het en sta
+                de systeemextensie toe via <em>Systeeminstellingen → Privacy en beveiliging</em>.</li>
+              <li><strong>Linux:</strong> de driver zit al in de kernel; installeren is niet nodig.</li>
+            </ul>
+          </li>
+          <li><strong>Is de poort bezet?</strong> Sluit andere programma's die de kabel gebruiken,
+            zoals een andere servicetool, een terminalprogramma of een tweede tabblad van deze tool.</li>
+          <li><strong>Komt er na het verbinden niets terug?</strong> Dan is het waarschijnlijk de
+            verkeerde poort. Klik op <em>Verbreken</em> en kies een andere. Heeft je kabel een andere
+            chip (bijvoorbeeld FTDI of CH340), zet dan <em>alle poorten</em> aan.</li>
+          <li>Lukt het nog steeds niet? Klik op <em>Logboek opslaan</em> en mail het bestand naar
+            <a href="mailto:ventilationwebtool@gmail.com?subject=Verbinden%20lukt%20niet">ventilationwebtool@gmail.com</a>.</li>
+        </ol>
+      </details>
       <div id="dashboardBody" class="cards">
         <p class="empty">Verbind met de DucoBox om te beginnen.</p>
       </div>

@@ -119,17 +119,50 @@ code { font-family: var(--mono); font-size: .92em; }
 
 /* ------------------------------------------------------------------ layout */
 
-.layout { display: grid; grid-template-columns: 220px 1fr; min-height: calc(100vh - 53px); }
+/* De breedte van het menu is te verslepen; app.js zet --nav-width. */
+.layout { display: grid; grid-template-columns: var(--nav-width, 260px) minmax(0, 1fr); min-height: calc(100vh - 53px); }
+
+.sidebar {
+  position: sticky;
+  top: 53px;
+  height: calc(100vh - 53px);
+  align-self: start;
+}
 
 .sidenav {
+  height: 100%;
   background: var(--panel);
   border-right: 1px solid var(--line);
   padding: 14px 10px 40px;
   overflow-y: auto;
-  max-height: calc(100vh - 53px);
-  position: sticky;
-  top: 53px;
 }
+
+/* Greep op de rand: breed genoeg om te pakken, zichtbaar bij aanwijzen. */
+.nav-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 5;
+}
+.nav-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background .15s;
+}
+.nav-resizer:hover::after,
+.nav-resizer:focus-visible::after,
+body.resizing-nav .nav-resizer::after { background: var(--accent); }
+.nav-resizer:focus-visible { outline: none; }
+body.resizing-nav { cursor: col-resize; user-select: none; }
 
 .nav-section { margin-bottom: 18px; }
 .nav-section h2 {
@@ -186,6 +219,23 @@ code { font-family: var(--mono); font-size: .92em; }
 
 .banner { padding: 12px 18px; font-size: 13px; }
 .banner.error { background: color-mix(in srgb, var(--danger) 12%, var(--bg)); color: var(--ink); border-bottom: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); }
+/* Hulp bij verbinden, op het dashboard zolang er geen verbinding is. */
+.connect-help {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.connect-help summary { cursor: pointer; font-weight: 600; }
+.connect-help[open] summary { margin-bottom: 8px; }
+.connect-help ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.connect-help ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.connect-help a, .banner a { color: var(--accent); }
+.connect-help code { font-size: 12px; }
+
 .banner.warn { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); color: var(--ink); border-bottom: 1px solid color-mix(in srgb, var(--warn) 34%, transparent); }
 
 .badge {
@@ -241,6 +291,20 @@ body[data-emulating] .topbar { box-shadow: inset 0 3px 0 var(--warn); }
 table.mini { border-collapse: collapse; width: 100%; margin-top: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
 table.mini th { text-align: left; color: var(--ink-2); font-weight: 600; padding: 3px 6px 3px 0; border-bottom: 1px solid var(--line); }
 table.mini td { padding: 3px 6px 3px 0; font-family: var(--mono); border-bottom: 1px solid var(--line-2, var(--line)); }
+
+/* Een kaart over de volle breedte van het dashboard. */
+.card.wide { grid-column: 1 / -1; overflow-x: auto; }
+table.mini.sensors td:nth-child(2) { font-family: inherit; }
+
+/* Metingen op de componentpagina. */
+.sensor-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.sensor-tile {
+  min-width: 130px; padding: 10px 14px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.sensor-label { font-size: 12px; color: var(--ink-2); }
+.sensor-value { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* ------------------------------------------------------------------ tables */
 
@@ -301,10 +365,13 @@ td.mono { font-family: var(--mono); }
 .nav-node.is-box .node-num { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
 .nav-node.active .node-num { background: var(--accent); color: var(--accent-ink); }
 
+/* Lange namen lopen door op een tweede regel in plaats van weg te vallen. */
 .nav-node-name {
   min-width: 0; flex: 1;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: 13px;
+  font-size: 13px; line-height: 1.3;
+  hyphens: auto; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
 }
 .nav-node-flag {
   flex: 0 0 auto; font-size: 10px; padding: 0 5px; border-radius: 8px;
@@ -500,7 +567,9 @@ td.mono { font-family: var(--mono); }
 
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; }
-  .sidenav { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidebar { position: static; height: auto; }
+  .sidenav { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .nav-resizer { display: none; }
   .content { padding: 16px; }
   .param { grid-template-columns: 1fr; }
   .param-edit { justify-content: flex-start; }

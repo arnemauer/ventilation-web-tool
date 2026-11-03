@@ -81,6 +81,17 @@ export function parseParaList(lines) {
         row.step = 1;
         row.max = b;
       }
+    } else {
+      // Een oudere Silent zet het bereik tussen ronde haakjes achteraan:
+      // "17. CO2 MAXOUT TEMP0 : 120 [.1°C] (100-350)". Alleen twee getallen met
+      // een streepje ertussen; "(0)" of "(TRUE)" is een toelichting.
+      const paren = body.match(/\(\s*(-?\d+)\s*-\s*(-?\d+)\s*\)\s*$/);
+      if (paren) {
+        body = body.slice(0, paren.index);
+        row.min = parseInt(paren[1], 10);
+        row.step = 1;
+        row.max = parseInt(paren[2], 10);
+      }
     }
     body = body.trim();
 

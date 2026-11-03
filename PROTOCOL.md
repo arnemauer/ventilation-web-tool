@@ -36,12 +36,41 @@ cmd = cmd.trim() + "\r\n"      // alleen toevoegen als nog niet aanwezig
 for (byte of cmd) { write(byte); sleep(1ms); }
 ```
 
+### Verminkte commando's
+
+Een oudere Silent (14033.5.4.0, print BMB-BASIC) ontving af en toe een letter te
+weinig: `netwverion`, `boarinfo`, `nodeonfigget 8` — vier op de vijftig
+commando's. Op een Focus is dat niet gezien. De box herhaalt wat hij ontving,
+dus de echo verraadt het:
+
+```
+netwverion
+         ^
+  Unknown Cmd
+```
+
+Twee gevallen:
+
+- **Niet herkend** (`Unknown Cmd`): er is niets uitgevoerd. Opnieuw sturen is
+  veilig.
+- **Wel uitgevoerd**: een cijfer minder in de waarde levert nog steeds een geldig
+  commando op (`nodeconfigset 2 3 6` in plaats van `… 65`). Dan staat er iets
+  anders in de box dan bedoeld. De tool stuurt dit niet vanzelf opnieuw, maar
+  meldt het en leest de waarde terug.
+
+Na een verminking schrijft de tool de rest van de sessie trager: 2 en daarna 4 ms
+per teken. Een regel geldt alleen als verminkte echo als hij hooguit drie tekens
+van het commando verschilt; meldingen die de box tussendoor stuurt, zoals
+`[DATAMNGR] SAVE - CRC 0xBF1D`, tellen niet mee.
+
 ## Antwoorden lezen
 
 Er is een terminator: **de prompt**. De box stuurt een `>` direct achter een
-regeleinde zodra hij klaar is voor het volgende commando. Lees byte voor byte en
-stop zodra de uitvoer eindigt op `\r>`, `\n>` of `\r\n>`; gooi daarna de
-invoerbuffer leeg.
+regeleinde zodra hij klaar is voor het volgende commando, gevolgd door een
+spatie: `\r> `. Lees byte voor byte en stop zodra de uitvoer, zonder spaties aan
+het eind, eindigt op `\r>` of `\n>`; gooi daarna de invoerbuffer leeg. Wie de
+spatie niet meetelt, herkent de prompt nooit en wacht bij elk commando op stilte
+of een timeout.
 
 Een box stuurt zijn antwoord in brokken met gaten tot bijna een seconde — soms midden in het
 commando-echo.
@@ -78,6 +107,10 @@ gecontroleerd tegen deze lijst.
 
 Dit betekent: **de webapp hoeft niets hard te coderen** — het toestel vertelt zelf
 wat het kan.
+
+Niet elke box geeft uitleg bij de commando's. Een oudere Silent geeft alleen de
+naam en de argumenten (`NodeInfo a`, `FanSpeed`), en meldt `Use: 52/52`. Wat een
+commando doet, valt dan alleen uit de naam af te leiden.
 
 ## Parameterlijsten — het kernpatroon
 

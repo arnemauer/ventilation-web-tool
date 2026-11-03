@@ -85,12 +85,21 @@ function wrap(...children) {
 
 /* ------------------------------------------------------------ per commando */
 
-/** `FanSpeed (fan 1)` met Actual, Filtered en Average in rpm. */
+/**
+ * Het toerental. Twee vormen: `FanSpeed (fan 1)` met losse regels voor
+ * Actual, Filtered en Average, of alles op één regel zoals een oudere Silent:
+ * `FanSpeed: Actual 1392 [rpm] - Filtered 1388 [rpm]`.
+ */
 function fanSpeed(lines) {
-  const get = (k) => (lines.find((l) => l.includes(k)) || '').match(/:\s*(\d+)/)?.[1];
+  const text = body(lines).join(' ');
+  const get = (k) => text.match(new RegExp(`${k}\\s*:?\\s*(\\d+)`))?.[1];
   const actual = get('Actual');
   if (!actual) return null;
-  return metric(actual, 'rpm', `gefilterd ${get('Filtered') ?? '–'} · gemiddeld ${get('Average') ?? '–'} rpm`);
+  const parts = [
+    get('Filtered') && `gefilterd ${get('Filtered')}`,
+    get('Average') && `gemiddeld ${get('Average')}`,
+  ].filter(Boolean);
+  return metric(actual, 'rpm', parts.length ? `${parts.join(' · ')} rpm` : '');
 }
 
 /** Drukken en opgenomen vermogen. */
@@ -258,14 +267,19 @@ function commInfo(lines) {
   return parts.length ? wrap(...parts) : null;
 }
 
-/** `0. HUM OUTPUT REQ. : 0 (%)` — de ventilatievraag die de sensoren stellen. */
+/**
+ * De ventilatievraag die de sensoren stellen. Nieuwere boxen:
+ * `0. HUM OUTPUT REQ. : 0 (%)`; een oudere Silent: `Hum output req :   0 [%]`.
+ */
 function sensorCtrl(lines) {
   const pairs = [];
   for (const l of body(lines)) {
-    const m = l.match(/^\d+\.\s*(.+?)\s*:\s*(-?\d+)\s*\(([^)]*)\)/);
+    const m =
+      l.match(/^\d+\.\s*(.+?)\s*:\s*(-?\d+)\s*\(([^)]*)\)/) ||
+      l.match(/^(.+?output req\.?)\s*:\s*(-?\d+)\s*\[([^\]]*)\]/i);
     if (!m) continue;
-    const name = m[1].trim();
-    const label = { 'HUM OUTPUT REQ.': 'Vraag op vocht', 'CO2 OUTPUT REQ.': 'Vraag op CO2' }[name] || name;
+    const name = m[1].trim().toUpperCase().replace(/\.$/, '');
+    const label = { 'HUM OUTPUT REQ': 'Vraag op vocht', 'CO2 OUTPUT REQ': 'Vraag op CO2' }[name] || m[1].trim();
     pairs.push([label, `${m[2]} ${m[3]}`.trim()]);
   }
   return pairs.length ? kvList(pairs) : null;

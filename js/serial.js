@@ -94,6 +94,7 @@ export class DucoSerial {
     this._startReadLoop();
     this.possibleCommands = [];
     this.rxBytes = 0;
+    this.interByteMs = 1;
     this.onLog({ dir: 'sys', text: 'Poort geopend op 115200 8N1' });
   }
 
@@ -250,11 +251,74 @@ export class DucoSerial {
     this._buf = [];
   }
 
+  /* ------------------------------------------------------------------ echo */
+
+  /**
+   * De box herhaalt elk commando zoals hij het ontving. Een oudere Silent
+   * (14033.5.4.0) ontving af en toe een letter te weinig: `netwverion`,
+   * `boarinfo`, `nodeonfigget 8`. Door de echo te vergelijken met wat we
+   * stuurden, weten we of het commando heel aankwam.
+   *
+   * De echo is de eerste regel van het antwoord, behalve meldingen die de box
+   * uit zichzelf tussendoor stuurt, zoals `[DATAMNGR] SAVE - CRC 0xBF1D`.
+   */
+  static echoOf(text) {
+    return String(text || '')
+      .split(/[\r\n]+/)
+      .map((l) => l.trim())
+      .find((l) => l && l !== '>' && !l.startsWith('['));
+  }
+
+  static sameCommand(a, b) {
+    const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    return norm(a) === norm(b);
+  }
+
+  /**
+   * Is `echo` een verminkte versie van `cmd`? Alleen als hij er hooguit drie
+   * tekens van verschilt — anders is het geen echo maar al het antwoord, en
+   * dan zegt het niets over hoe het commando aankwam.
+   */
+  static isMangledEcho(echo, cmd) {
+    const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const a = norm(echo);
+    const b = norm(cmd);
+    if (!a || a === b) return false;
+    // Levenshtein-afstand, met een vroege uitweg.
+    if (Math.abs(a.length - b.length) > 3) return false;
+    let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const row = [i];
+      for (let j = 1; j <= b.length; j++) {
+        row[j] = Math.min(prev[j] + 1, row[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = row;
+    }
+    return prev[b.length] <= 3;
+  }
+
+  /**
+   * Na een verminkt commando schrijven we de rest van de sessie trager:
+   * 1 → 2 → 4 ms tussen de bytes.
+   */
+  _slowDown(sent, received) {
+    this.onLog({ dir: 'sys', text: `De box ontving "${received}" in plaats van "${sent}"` });
+    if (this.interByteMs >= 4) return;
+    this.interByteMs = Math.min(4, this.interByteMs * 2);
+    this.onLog({ dir: 'sys', text: `Schrijfsnelheid verlaagd naar ${this.interByteMs} ms per teken` });
+  }
+
   /* ------------------------------------------------------------------ commando's */
 
   /**
    * Verstuurt een commando. Met `checkDone` wachten we op done/failed en
    * proberen we opnieuw bij uitblijven.
+   *
+   * Kwam het commando verminkt aan en herkende de box het niet, dan is er niets
+   * gebeurd en sturen we het opnieuw. Voerde de box een verminkt commando wél
+   * uit — een cijfer minder in de waarde levert nog steeds een geldig commando
+   * op — dan stoppen we met een fout: wat er nu in de box staat moet de
+   * gebruiker zelf controleren.
    */
   sendCommand(cmd, { checkDone = false, trials = 2, timeoutSec = 2 } = {}) {
     return this._serialize(async () => {
@@ -265,8 +329,9 @@ export class DucoSerial {
       if (!payload.includes('\r\n')) payload += '\r\n';
 
       let left = trials;
+      let garbledRetries = 0;
       while (left > 0) {
-        this.onLog({ dir: 'tx', text: cmd.trim() });
+        this.onLog({ dir: 'tx', text: cmd.trim() + (garbledRetries ? '  (opnieuw)' : '') });
         await this._writeSlow(payload);
 
         if (!checkDone) {
@@ -275,16 +340,41 @@ export class DucoSerial {
         }
 
         const deadline = Date.now() + timeoutSec * 1000;
+        let seen = '';
+        let garbled = false;
         do {
-          const t = (await this.readBuffer({ deadline })).trim().toLowerCase();
+          seen += await this.readBuffer({ deadline });
+          const t = seen.toLowerCase();
+          const echo = DucoSerial.echoOf(seen);
+          const mangled = DucoSerial.isMangledEcho(echo, cmd);
+          const unknown = t.includes('unknown cmd') || t.includes('incorrect cmd arguments');
+
+          if (mangled && unknown) {
+            // Niet uitgevoerd: veilig om opnieuw te sturen.
+            this._slowDown(cmd.trim(), echo);
+            garbled = true;
+            break;
+          }
+          if (mangled && (t.includes('done') || t.includes('failed'))) {
+            this._slowDown(cmd.trim(), echo);
+            throw new Error(
+              `De box ontving "${echo}" in plaats van "${cmd.trim()}" en voerde dat uit. ` +
+                'Controleer de waarde.'
+            );
+          }
           if (t.includes('done')) return true;
           if (t.includes('failed')) return false;
-          if (t.includes('unknown cmd') || t.includes('incorrect cmd arguments')) {
-            throw new Error("Toestel kent commando niet: " + cmd);
-          }
+          if (unknown) throw new Error('Toestel kent commando niet: ' + cmd);
           await sleep(500);
         } while (Date.now() <= deadline);
         left--;
+        // Verminkt en niet uitgevoerd: de lus stuurt het opnieuw, trager. Daar
+        // krijgt het minstens drie kansen voor, ook als `trials` kleiner is.
+        if (garbled) {
+          await this.flushBuffer();
+          if (left < 1 && garbledRetries < 2) left = 1;
+          garbledRetries++;
+        }
       }
       return false;
     });
@@ -308,7 +398,8 @@ export class DucoSerial {
       if (!this.isOpen) throw new Error('Niet verbonden');
 
       let lines = [];
-      let resends = 1;
+      let resends = 1;          // een onbekend commando: nog één keer proberen
+      let garbleResends = 3;    // verminkt aangekomen: tot drie keer opnieuw
 
       let payload = cmd.trim();
       if (!payload.includes('\r\n')) payload += '\r\n';
@@ -325,11 +416,27 @@ export class DucoSerial {
 
         const low = text.toLowerCase();
         const noResponse = text === '' && resendWhenNoResponse;
+
+        // Kwam het commando verminkt aan, dan hoort het antwoord bij iets anders
+        // (of is het "Unknown Cmd"). Een leesvraag mag gewoon opnieuw.
+        const echo = DucoSerial.echoOf(text);
+        if (DucoSerial.isMangledEcho(echo, cmd) && garbleResends > 0) {
+          this._slowDown(cmd.trim(), echo);
+          lines = [];
+          this.onLog({ dir: 'tx', text: cmd.trim() + '  (opnieuw)' });
+          await this._writeSlow(payload);
+          await sleep(50);
+          deadline = Date.now() + timeoutSec * 1000;
+          garbleResends--;
+          continue;
+        }
+
         if (
           (low.includes('unknown cmd') || low.includes('incorrect cmd arguments') || noResponse) &&
           resends > 0
         ) {
           this.onLog({ dir: 'tx', text: cmd.trim() + '  (opnieuw)' });
+          lines = [];
           await this._writeSlow(payload);
           await sleep(1000);
           deadline = Date.now() + timeoutSec * 1000;

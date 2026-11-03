@@ -497,7 +497,7 @@ export const LOG_PROFILES = [
     "DLL CCxx PA Tbl : C1 00 00 00 00 00 00 00",
     "DLL TX Delay    : 15",
     "DLL RX Buffer   : 0D 07 00 14 51 80 08 02 01 FF 20 00 52 00",
-    "DLL TX Buffer   : 09 06 00 04 37 7E 08 C2 3C FF"
+    "DLL TX Buffer   : 09 06 00 00 00 00 08 C2 3C FF"
    ],
    "sensorctrlinfo": [
     " 0. HUM OUTPUT REQ.             :       0 (%)     ",
@@ -1675,7 +1675,7 @@ export const LOG_PROFILES = [
     "DLL CCxx PA Tbl : C1 00 00 00 00 00 00 00",
     "DLL TX Delay    : 15",
     "DLL RX Buffer   : 0D 07 00 14 51 80 08 02 01 FF 20 00 52 00",
-    "DLL TX Buffer   : 09 06 00 04 37 7E 08 C2 3C FF"
+    "DLL TX Buffer   : 09 06 00 00 00 00 08 C2 3C FF"
    ],
    "sensorctrlinfo": [
     " 0. HUM OUTPUT REQ.             :       0 (%)     ",
@@ -2384,6 +2384,333 @@ export const LOG_PROFILES = [
    "nodeparaget 4 163": [
     "Get PARA 163 of NODE 4",
     "Failed"
+   ]
+  }
+ },
+ {
+  "id": "silent-5.4.0",
+  "label": "DucoBox Silent 14033.5.4.0 — 3 nodes (logboek)",
+  "family": "silent",
+  "productVersion": 14033,
+  "version": "5.4.0",
+  "canned": {
+   "help /all": [
+    "-------------------------------------------------",
+    "Command Help []",
+    "-------------------------------------------------",
+    "BoardInfo            ",
+    "BoardSet a           ",
+    "CommDllDefaults      ",
+    "CommDllInfo          ",
+    "CommDllSetReg a b    ",
+    "CommInfo             ",
+    "CommNlInfo           ",
+    "CoreGetError         ",
+    "CoreInfo             ",
+    "CoreLogLevel a       ",
+    "DataAllowSave a      ",
+    "DataClear a          ",
+    "DataDefaults         ",
+    "DataInfo             ",
+    "DataRaw a            ",
+    "DataSave             ",
+    "FanCalib             ",
+    "FanCalibClear        ",
+    "FanCalibNext         ",
+    "FanCalibSet a b      ",
+    "FanCalibStart        ",
+    "FanCalibStop         ",
+    "FanParaGet           ",
+    "FanParaSet a b       ",
+    "FanSpeed             ",
+    "Help ...             ",
+    "InstallerSet a       ",
+    "Network              ",
+    "NetworkClear         ",
+    "NetwSerial           ",
+    "NetwVersion          ",
+    "NodeConfigGet a      ",
+    "NodeConfigSet a b c  ",
+    "NodeInfo a           ",
+    "NodeLoadDefaults a   ",
+    "NodeParaGet a b      ",
+    "NodeParaSet a b c    ",
+    "NodeReset a          ",
+    "NodeSaveData a       ",
+    "NodeSetAsso a b      ",
+    "NodeSetOverrule a b  ",
+    "NodeSetParent a b    ",
+    "OsHwm                ",
+    "Reset                ",
+    "SensorCtrlInfo       ",
+    "SensorCtrlParaGet    ",
+    "SensorCtrlParaSet a b",
+    "SensorInfo           ",
+    "SwVersion            ",
+    "TestMode             ",
+    "VentCtrlParaGet      ",
+    "VentCtrlParaSet a b  ",
+    "-------------------------------------------------",
+    "Use: 52/52"
+   ],
+   "swversion": [
+    "14033.5.4.0",
+    "built @ Feb 22 2018 12:43:00"
+   ],
+   "network": [
+    "Network:",
+    "--- start list ---",
+    "node|netw|addr|sub |type    |ptcl|cerr|prnt|asso|stts|stat|cntdwn|%dbt|trgt|cval|snsr|ovrl|capin |capout|tree|temp|info",
+    "1   |VIRT|1   |1   |BOX     |16  |0   |0   |0   |0x00|AUTO|0     |87  |51  |51  |0   |255 |220   |3520  |0x01|0   |AUTO:0(0)",
+    "2   |RF  |2   |1   |UCCO2   |23  |0   |1   |1   |0x00|-   |0     |-   |-   |-   |87  |-   |-     |-     |-   |207 |-",
+    "3   |RF  |3   |1   |UCBAT   |255 |0   |1   |1   |0x00|-   |0     |-   |-   |-   |0   |-   |-     |-     |-   |0   |-",
+    "--- end list ---"
+   ],
+   "netwversion": [
+    "Network:",
+    "--- start list ---",
+    "node|type    |version",
+    "1   |BOX     |14033.5.4.0",
+    "2   |UCCO2   |17046.12.1.0",
+    "3   |UCBAT   |---",
+    "--- end list ---"
+   ],
+   "netwserial": [
+    "Network:",
+    "--- start list ---",
+    "node|type    |version",
+    "1   |BOX     |RS0000000002",
+    "2   |UCCO2   |RS0000000001",
+    "3   |UCBAT   |---",
+    "--- end list ---"
+   ],
+   "nodeparaget 2 0": [
+    "Get PARA 0 of NODE 2",
+    "--> 17046",
+    "Done"
+   ],
+   "nodeparaget 3 0": [
+    "Get PARA 0 of NODE 3",
+    "Failed"
+   ],
+   "boardinfo": [
+    "BootSW : 65535.65535.65535.65535",
+    "Serial : RS0000000002",
+    "Board  : DUCO BMB-BASIC   2V3",
+    "Family : F:30 - C:0",
+    "DevId  : 0x00000000 [0x00000000]",
+    "DevType: 17",
+    "SubType: 1",
+    "WeekCnt: 155",
+    "BootCnt: 15",
+    "Done"
+   ],
+   "fanspeed": [
+    "FanSpeed: Actual 1392 [rpm] - Filtered 1388 [rpm]",
+    "Done"
+   ],
+   "sensorinfo": [
+    "[SENSOR] INFO"
+   ],
+   "commdllinfo": [
+    "[DLL PSIRF] INFO",
+    "DLL State       : RX_ACTIVE",
+    "DLL CCxx Regs   : 09 2E 07 47 D3 91 20 0C 05 00 00 06 00 21 65 5C",
+    "                  CA 83 13 22 F8 35 07 2F 08 16 6C 43 40 91 87 6B",
+    "                  FB 56 10 E9 2A 00 1F 41 00 59 7F 3F 81 35 09",
+    "DLL CCxx PA Tbl : C1 00 00 00 00 00 00 00",
+    "DLL TX Delay    : 11",
+    "DLL RX Buffer   : 09 06 00 00 00 00 10 44 1D FF",
+    "DLL TX Buffer   : 0D 07 00 00 00 00 08 82 2D FF 20 00 12 00"
+   ],
+   "comminfo": [
+    "COMM INFO",
+    " install state          0 : OPERATIONAL",
+    " module in asso         0",
+    " module in parent       1",
+    " module to replace      0",
+    "COMM RF",
+    " comm state             2 : SUCCESS",
+    " module in pdo          24",
+    " pdo msg counter        10"
+   ],
+   "commnlinfo": [
+    "[NL PSIRF] INFO",
+    "NL State       : IDLE (0 retries)",
+    "NL In Link     : FALSE",
+    "NL Address     : 1",
+    "NL Netw HID    : 00000000 [00000000]",
+    "NL Msg Fails   : 18",
+    "NL Remove NID  : 0",
+    "NL Network     :  1 - 0xFF ( 1 - 0xFF)",
+    "                  2 - 0x57 ( 2 - 0xFF) F:0x00",
+    "                  3 - 0x00 ( 3 - 0x00) F:0x0F"
+   ],
+   "coreinfo": [
+    "Core",
+    "- state     : APP ACTIVE ",
+    "- stack hwm : 243/319"
+   ],
+   "datainfo": [
+    "[DATAMNGR] INFO (sw14033 - v1 - OK)",
+    "idx|name      |mid|size|ver|l2d|state",
+    " 0 |BOARD     |  0|  12|  4| no|OK",
+    " 1 |RF DLL    | 12|  55|  2|yes|OK",
+    " 2 |RF NL     |  2|  76|  1| no|OK",
+    " 3 |SNSR CTRL |  9|  44|  5|yes|OK",
+    " 4 |VENTCTRL  | 41| 168|  5|yes|OK",
+    " 5 |DEVPARA   | 43| 324|  5| no|OK",
+    " 6 |FAN CALIB | 42|  20|  1|yes|OK",
+    " 7 |FAN CTRL  | 44|  10|  5|yes|OK",
+    "Use: 8/8"
+   ],
+   "fanparaget": [
+    " 0. AUTO CALIB       : ON (1)",
+    " 1. MAX HIGH LEVEL   : 62 [%]",
+    " 2. MIN FAN SPEED    : 400 [rpm]",
+    " 3. MAX FAN OUT      : 100 [%]",
+    " 4. CALIB ON MAN2    : FALSE (0)",
+    " 5. GROUND BOUND     : TRUE (1)",
+    " 6. HEAD COUNT       : 4 [ppl]",
+    " 7. FAN CURVE        : 1 [0-1]",
+    "Done"
+   ],
+   "oshwm": [
+    " 0 - TERM       - 28 [3]",
+    " 1 - DEV_PARA   - 24 [2]",
+    " 2 - BOX_COMM   - 36 [2]",
+    " 3 - RF_PDO     - 28 [2]",
+    " 4 - IDLE       - 40 [0]",
+    "Use : 5/5",
+    "Free Heap Size : 8"
+   ],
+   "sensorctrlinfo": [
+    "[SENSOR CTRL] INFO",
+    "Hum output req :   0 [%]",
+    "Co2 output req :   0 [%]"
+   ],
+   "sensorctrlparaget": [
+    " 0. HUM SETPOINT     : 7000 [.01%]",
+    " 1. HUM HYSTERESIS   : 0 [.01%]",
+    " 2. HUM DELTA ACTIVE : 0 (FALSE)",
+    " 3. HUM DELTA HIGH   : 15 [min]",
+    " 4. HUM DELTA TIME 0 : 2 [5s]",
+    " 5. HUM DELTA TIME 1 : 4 [5s]",
+    " 6. HUM DELTA TIME 2 : 6 [5s]",
+    " 7. HUM DELTA TIME 3 : 12 [5s]",
+    " 8. HUM DELTA TIME 4 : 24 [5s]",
+    " 9. HUM DELTA HUM 0  : 300 [.01%]",
+    "10. HUM DELTA HUM 1  : 300 [.01%]",
+    "11. HUM DELTA HUM 2  : 400 [.01%]",
+    "12. HUM DELTA HUM 3  : 600 [.01%]",
+    "13. HUM DELTA HUM 4  : 800 [.01%]",
+    "14. CO2 SETPOINT     : 800 [ppm]",
+    "15. CO2 CTRL GRATING : 0 (FALSE)",
+    "16. CO2 TEMP COMPENS : 1 (TRUE)",
+    "17. CO2 MAXOUT TEMP0 : 120 [.1°C] (100-350)",
+    "18. CO2 MAXOUT TEMP1 : 160 [.1°C] (100-350)",
+    "19. CO2 MAXOUT COMP  : 40 [%]",
+    "20. CO2 SETPNT TEMP0 : 160 [.1°C] (100-350)",
+    "21. CO2 SETPNT TEMP1 : 180 [.1°C] (100-350)",
+    "22. CO2 SETPNT TEMP2 : 220 [.1°C] (100-350)",
+    "23. CO2 SETPNT TEMP3 : 240 [.1°C] (100-350)",
+    "24. CO2 SETPNT COMP  : 300 [ppm]",
+    "25. CO2 TOILET MODE  : 0 (FALSE)",
+    "26. CO2 TLT 30S HYST : 20 [ppm]",
+    "27. CO2 TLT 60S HYST : 40 [ppm]",
+    "28. CO2 TLT LONGDTCT : 4 [30s]",
+    "29. CO2 TLT FADELONG : 30 [30s]",
+    "30. CO2 TLT FADESHRT : 2 [30s]",
+    "31. CO2 HYSTERESIS   : 100 [ppm]",
+    "Done"
+   ],
+   "ventctrlparaget": [
+    " 0. BALANCE THRESH.  : 10 [%]",
+    " 1. CTRL TEMP DEP.   : 1 (TRUE)",
+    " 2. CTRL TEMP LOW    : 160 [.1°C]",
+    " 3. CTRL TEMP HIGH   : 240 [.1°C]",
+    " 4. MAX MOVING MOTORS: 20",
+    "Done"
+   ],
+   "nodeconfigget 0": [
+    "Done"
+   ],
+   "nodeconfigget 1": [
+    " 1. AutoMin        :   10 %    [10:5:100]",
+    " 2. AutoMax        :  100 %    [10:5:100]",
+    " 3. Capacity       :  220 m3/h [0:5:750]",
+    " 7. Manual 1       :   15 %    [0:5:50]",
+    " 8. Manual 2       :   50 %    [15:5:100]",
+    " 9. Manual 3       :  100 %    [50:5:100]",
+    "10. Manual Timeout :   15 min  [5:5:9995]",
+    "Done"
+   ],
+   "nodeconfigget 2": [
+    " 4. CO2 Setpoint   :  800 ppm  [0:10:2000]",
+    " 7. Manual 1       :   15 %    [0:5:50]",
+    " 8. Manual 2       :   50 %    [15:5:100]",
+    " 9. Manual 3       :  100 %    [50:5:100]",
+    "10. Manual Timeout :   15 min  [5:5:9995]",
+    "15. Temp Dependent :   ON (1)  [0:1:1]",
+    "19. SensorVisuLevel:    0 %    [0:5:100]",
+    "Done"
+   ],
+   "nodeconfigget 3": [
+    " 7. Manual 1       :   15 %    [0:5:50]",
+    " 8. Manual 2       :   50 %    [15:5:100]",
+    " 9. Manual 3       :  100 %    [50:5:100]",
+    "10. Manual Timeout :   15 min  [5:5:9995]",
+    "Done"
+   ],
+   "nodeconfigget 4": [
+    "Done"
+   ],
+   "nodeconfigget 5": [
+    "Done"
+   ],
+   "nodeconfigget 6": [
+    "Done"
+   ],
+   "nodeconfigget 7": [
+    "Done"
+   ],
+   "nodeconfigget 8": [
+    "Done"
+   ],
+   "nodeconfigget 9": [
+    "Done"
+   ],
+   "nodeconfigget 10": [
+    "Done"
+   ],
+   "nodeconfigget 11": [
+    "Done"
+   ],
+   "nodeconfigget 12": [
+    "Done"
+   ],
+   "nodeconfigget 13": [
+    "Done"
+   ],
+   "nodeconfigget 14": [
+    "Done"
+   ],
+   "nodeconfigget 15": [
+    "Done"
+   ],
+   "nodeinfo 0": [
+    "Node    0",
+    "ApplSW  Failed",
+    "Serial  Failed",
+    "Counter Failed",
+    "Done"
+   ],
+   "nodeinfo 1": [
+    "Node    1",
+    "ApplSW  Failed",
+    "Serial  Failed",
+    "Counter Failed",
+    "Done"
    ]
   }
  }
