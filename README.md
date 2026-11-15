@@ -243,3 +243,10 @@ getypt.
 Zie [TODO.md](TODO.md) voor de volledige stand: wat af is, wat nog op hardware
 bevestigd moet worden, en wat bewust buiten deze versie is gelaten
 (software-updates uploaden bovenaan — dat kan een toestel onbruikbaar maken).
+
+## Licentie
+
+Alle rechten voorbehouden. Je mag de tool gratis gebruiken, ook beroepsmatig,
+online of lokaal voor eigen gebruik. De broncode kopiëren, aanpassen,
+verspreiden of opnemen in een ander product mag alleen met schriftelijke
+toestemming. Zie [LICENSE](LICENSE).

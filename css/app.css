@@ -133,9 +133,25 @@ code { font-family: var(--mono); font-size: .92em; }
   height: 100%;
   background: var(--panel);
   border-right: 1px solid var(--line);
-  padding: 14px 10px 40px;
+  padding: 14px 10px 52px;
   overflow-y: auto;
 }
+
+/* GitHub-logo vast linksonder in het venster, ook als er een balk boven het
+   menu staat. De ruimte onder het menu houdt de laatste knop eruit weg. */
+.nav-github {
+  position: fixed;
+  left: 10px;
+  bottom: 8px;
+  z-index: 4;
+  padding: 6px 8px;
+  line-height: 0;
+  color: var(--ink-3);
+  background: var(--panel);
+  border-radius: var(--radius);
+}
+.nav-github:hover,
+.nav-github:focus-visible { color: var(--ink); }
 
 /* Greep op de rand: breed genoeg om te pakken, zichtbaar bij aanwijzen. */
 .nav-resizer {
@@ -575,7 +591,8 @@ td.mono { font-family: var(--mono); }
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; }
-  .sidenav { height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .sidenav { height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  .nav-github { position: static; display: inline-block; }
   .nav-resizer { display: none; }
   .content { padding: 16px; }
   .param { grid-template-columns: 1fr; }
